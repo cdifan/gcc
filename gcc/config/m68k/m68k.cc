@@ -619,7 +619,13 @@ m68k_option_override (void)
   if (TARGET_PCREL && flag_pic == 0)
     flag_pic = 1;
 
-  if (!flag_pic)
+  if (TARGET_BSRW)
+    {
+      m68k_symbolic_call_var = M68K_SYMBOLIC_CALL_BSR_W;
+
+      m68k_symbolic_jump = "bra.w %p0";
+    }
+  else if (!flag_pic)
     {
       m68k_symbolic_call_var = M68K_SYMBOLIC_CALL_JSR;
 
@@ -660,6 +666,10 @@ m68k_option_override (void)
 
     case M68K_SYMBOLIC_CALL_BSR_P:
       m68k_symbolic_call = "bsr%.l %p0";
+      break;
+
+    case M68K_SYMBOLIC_CALL_BSR_W:
+      m68k_symbolic_call = "bsr%.w %p0";
       break;
 
     case M68K_SYMBOLIC_CALL_NONE:
@@ -3521,8 +3531,8 @@ handle_move_double (rtx operands[2],
 	}
       else if (optype0 == OFFSOP)
 	{
-	  middlehalf[0] = adjust_address (operands[0], SImode, 4);
-	  latehalf[0] = adjust_address (operands[0], SImode, size - 4);
+	  middlehalf[0] = adjust_address_nv (operands[0], SImode, 4);
+	  latehalf[0] = adjust_address_nv (operands[0], SImode, size - 4);
 	}
       else
 	{
@@ -3537,8 +3547,8 @@ handle_move_double (rtx operands[2],
 	}
       else if (optype1 == OFFSOP)
 	{
-	  middlehalf[1] = adjust_address (operands[1], SImode, 4);
-	  latehalf[1] = adjust_address (operands[1], SImode, size - 4);
+	  middlehalf[1] = adjust_address_nv (operands[1], SImode, 4);
+	  latehalf[1] = adjust_address_nv (operands[1], SImode, size - 4);
 	}
       else if (optype1 == CNSTOP)
 	{
@@ -3617,8 +3627,8 @@ handle_move_double (rtx operands[2],
 	  if (GET_MODE (operands[1]) == XFmode)
 	    {
 	      operands[1] = gen_rtx_MEM (XFmode, latehalf[0]);
-	      middlehalf[1] = adjust_address (operands[1], DImode, size - 8);
-	      latehalf[1] = adjust_address (operands[1], DImode, size - 4);
+	      middlehalf[1] = adjust_address_nv (operands[1], DImode, size - 8);
+	      latehalf[1] = adjust_address_nv (operands[1], DImode, size - 4);
 	    }
 	  else
 	    {
@@ -5229,6 +5239,33 @@ m68k_delegitimize_address (rtx orig_x)
 }
 
 
+static tree
+get_symbol_decl (rtx addr)
+{
+  switch (GET_CODE (addr))
+  {
+  case SYMBOL_REF:
+    return SYMBOL_REF_DECL (addr);
+  case LABEL_REF:
+    return 0;
+  case CONST:
+    return get_symbol_decl (XEXP (addr, 0));
+  case PLUS:
+    {
+      rtx op0 = XEXP (addr, 0);
+      if (GET_CODE (op0) == SYMBOL_REF || GET_CODE (op0) == LABEL_REF)
+      {
+	return get_symbol_decl (op0);
+      }
+      return get_symbol_decl (XEXP (addr, 1));
+    }
+    break;
+  default:
+    /* I don't know this case... bugreport please */
+    gcc_unreachable ();
+  }
+}
+
 /* A C compound statement to output to stdio stream STREAM the
    assembler syntax for an instruction operand that is a memory
    reference whose address is ADDR.  ADDR is an RTL expression.
@@ -5276,10 +5313,20 @@ print_operand_address (FILE *file, rtx addr)
 	}
       else if (TARGET_PCREL)
 	{
-	  /* (d16,PC) or (bd,PC,Xn) (with suppressed index register).  */
-	  fputc ('(', file);
-	  output_addr_const (file, addr);
-	  asm_fprintf (file, flag_pic == 1 ? ":w,%Rpc)" : ":l,%Rpc)");
+	  tree decl = TARGET_A6REL ? get_symbol_decl (addr) : NULL;
+
+	  /* how distinct rodata or data/bss? DECL_IN_CONSTANT_POOL seems bad if decl is array of something. */
+	  if (decl && TREE_CODE (decl) == VAR_DECL && !TREE_READONLY (decl))
+	  {
+	    /* symbol(%a6) */
+	    output_addr_const (file, addr);
+	    asm_fprintf (file, "(%Ra6)");
+	  } else {
+	    /* (d16,PC) or (bd,PC,Xn) (with suppressed index register).  */
+	    fputc ('(', file);
+	    output_addr_const (file, addr);
+	    asm_fprintf (file, flag_pic == 1 ? ":w,%Rpc)" : ":l,%Rpc)");
+	  }
 	}
       else
 	{
@@ -7122,8 +7169,10 @@ m68k_conditional_register_usage (void)
         if (TEST_HARD_REG_BIT (x, i))
 	  fixed_regs[i] = call_used_regs[i] = 1;
     }
-  if (flag_pic)
+  if (flag_pic && !TARGET_PCREL)
     fixed_regs[PIC_REG] = call_used_regs[PIC_REG] = 1;
+  if (TARGET_A6REL)
+    fixed_regs[A6_REG] = call_used_regs[A6_REG] = 1;
 }
 
 static void

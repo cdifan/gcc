@@ -133,6 +133,10 @@ along with GCC; see the file COPYING3.  If not see
       if (TARGET_68881)							\
 	builtin_define ("__HAVE_68881__");				\
 									\
+      /* Data is addressed relative to a6 (-ma6rel, OS-9).  */	\
+      if (TARGET_A6REL)							\
+	builtin_define ("__A6REL__");					\
+									\
       if (TARGET_COLDFIRE)						\
 	{								\
 	  const char *tmp;						\

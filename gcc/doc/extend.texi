@@ -7130,6 +7130,7 @@ attributes.
 * H8/300 Variable Attributes::
 * IA-64 Variable Attributes::
 * M32R/D Variable Attributes::
+* m68k Variable Attributes::
 * MeP Variable Attributes::
 * Microsoft Windows Variable Attributes::
 * MSP430 Variable Attributes::
@@ -7900,6 +7901,23 @@ addresses can be loaded with the @code{ld24} instruction).
 Medium and large model objects may live anywhere in the 32-bit address space
 (the compiler generates @code{seth/add3} instructions to load their
 addresses).
+@end table
+
+@node m68k Variable Attributes
+@subsection m68k Variable Attributes
+
+One attribute is currently defined for the m68k OS-9 targets.
+
+@table @code
+@item remote
+@cindex @code{remote} variable attribute, m68k
+Use this attribute, with @option{-ma6rel}, for variables with static
+storage that don't fit in the 64 KB of data that @code{a6}-relative
+addressing reaches, like the @code{remote} storage class of Microware's
+OS-9 C compiler.  Such variables are placed in the sections
+@code{.remote.data} and @code{.remote.bss}, which the linker script puts
+after the other data, and are addressed as @code{a6} plus a 32-bit
+offset.
 @end table
 
 @node MeP Variable Attributes

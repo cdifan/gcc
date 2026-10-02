@@ -204,6 +204,11 @@ static int m68k_comp_type_attributes (const_tree, const_tree);
 static void m68k_insert_attributes (tree, tree *);
 static rtx m68k_function_value_hook (const_tree, const_tree, bool);
 static fixed_size_mode m68k_get_raw_mode (int);
+static tree m68k_handle_remote_attribute (tree *, tree, tree, int, bool *);
+static void m68k_encode_section_info (tree, rtx, int);
+static section *m68k_select_section (tree, int, unsigned HOST_WIDE_INT);
+static void m68k_unique_section (tree, int);
+static unsigned int m68k_section_type_flags (tree, const char *, int);
 static pad_direction m68k_function_arg_padding (machine_mode, const_tree);
 static void m68k_setup_incoming_varargs (cumulative_args_t,
 					 const function_arg_info &, int *,
@@ -301,6 +306,18 @@ static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
 
 #undef TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE m68k_function_value_hook
+
+#undef TARGET_ENCODE_SECTION_INFO
+#define TARGET_ENCODE_SECTION_INFO m68k_encode_section_info
+
+#undef TARGET_ASM_SELECT_SECTION
+#define TARGET_ASM_SELECT_SECTION m68k_select_section
+
+#undef TARGET_ASM_UNIQUE_SECTION
+#define TARGET_ASM_UNIQUE_SECTION m68k_unique_section
+
+#undef TARGET_SECTION_TYPE_FLAGS
+#define TARGET_SECTION_TYPE_FLAGS m68k_section_type_flags
 
 #undef TARGET_GET_RAW_ARG_MODE
 #define TARGET_GET_RAW_ARG_MODE m68k_get_raw_mode
@@ -435,6 +452,9 @@ static const struct attribute_spec m68k_attribute_table[] =
     m68k_handle_callconv_attribute, attr_os9call_exclusions },
   { "stackcall", 0, 0, false, true, true, true,
     m68k_handle_callconv_attribute, attr_stackcall_exclusions },
+  /* Data beyond the 64 KB a6 window (OS-9, -ma6rel).  */
+  { "remote", 0, 0, true, false, false, false,
+    m68k_handle_remote_attribute, NULL },
   { NULL, 0, 0, false, false, false, false, NULL, NULL }
 };
 
@@ -1022,6 +1042,151 @@ m68k_output_os9_stkcheck (rtx n, bool save_d0)
   if (save_d0)
     output_asm_insn ("move%.l %+,%0", ops);
   return "";
+}
+
+/* Remote data: variables with the remote attribute live beyond the
+   64 KB that a6-relative addressing reaches (like Microware C's remote
+   storage class), in .remote.data and .remote.bss (not .data.remote and
+   .bss.remote, which linker scripts' .data.* and .bss.* would capture).  Their symbols are
+   marked, and an address of one is not a legitimate constant or
+   address: it becomes a6 plus the symbol's 32-bit offset from a6,
+   loaded with move.l #sym,dN.  With the data layout of the OS-9 linker
+   scripts (data from -0x8000), that offset is the symbol's value.  */
+
+#define M68K_SYMBOL_FLAG_REMOTE SYMBOL_FLAG_MACH_DEP
+
+static bool
+m68k_remote_decl_p (const_tree decl)
+{
+  return (TREE_CODE (decl) == VAR_DECL
+	  && lookup_attribute ("remote", DECL_ATTRIBUTES (decl)) != NULL);
+}
+
+/* Handle the remote attribute; arguments as in struct
+   attribute_spec.handler.  */
+
+static tree
+m68k_handle_remote_attribute (tree *node, tree name, tree, int,
+			      bool *no_add_attrs)
+{
+  if (!M68K_OS9_TARGET || !TARGET_A6REL)
+    {
+      warning (OPT_Wattributes, "%qE attribute ignored without %<-ma6rel%> "
+	       "on OS-9 targets", name);
+      *no_add_attrs = true;
+    }
+  else if (TREE_CODE (*node) != VAR_DECL
+	   || (!TREE_STATIC (*node) && !DECL_EXTERNAL (*node)))
+    {
+      warning (OPT_Wattributes, "%qE attribute only applies to variables "
+	       "with static storage", name);
+      *no_add_attrs = true;
+    }
+  else
+    /* A common symbol can't be placed in a section.  */
+    DECL_COMMON (*node) = 0;
+  return NULL_TREE;
+}
+
+/* Implement TARGET_ENCODE_SECTION_INFO.  */
+
+static void
+m68k_encode_section_info (tree decl, rtx rtl, int first)
+{
+  default_encode_section_info (decl, rtl, first);
+  /* Name the section here: GCC puts uninitialized variables in .bss
+     without asking TARGET_ASM_SELECT_SECTION.  */
+  if (m68k_remote_decl_p (decl) && TREE_STATIC (decl)
+      && DECL_SECTION_NAME (decl) == NULL)
+    set_decl_section_name (decl, (bss_initializer_p (decl)
+				  ? ".remote.bss" : ".remote.data"));
+  if (m68k_remote_decl_p (decl) && MEM_P (rtl)
+      && GET_CODE (XEXP (rtl, 0)) == SYMBOL_REF)
+    SYMBOL_REF_FLAGS (XEXP (rtl, 0)) |= M68K_SYMBOL_FLAG_REMOTE;
+}
+
+/* Implement TARGET_ASM_SELECT_SECTION.  */
+
+static section *
+m68k_select_section (tree decl, int reloc, unsigned HOST_WIDE_INT align)
+{
+  if (m68k_remote_decl_p (decl))
+    return get_named_section (decl, (bss_initializer_p (decl)
+				     ? ".remote.bss" : ".remote.data"),
+			      reloc);
+  return default_elf_select_section (decl, reloc, align);
+}
+
+/* Implement TARGET_ASM_UNIQUE_SECTION (-fdata-sections).  */
+
+static void
+m68k_unique_section (tree decl, int reloc)
+{
+  if (m68k_remote_decl_p (decl))
+    {
+      const char *name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
+      name = targetm.strip_name_encoding (name);
+      set_decl_section_name (decl, ACONCAT (((bss_initializer_p (decl)
+					      ? ".remote.bss."
+					      : ".remote.data."),
+					     name, NULL)));
+      return;
+    }
+  default_unique_section (decl, reloc);
+}
+
+/* Implement TARGET_SECTION_TYPE_FLAGS: .remote.bss has no contents, like
+   .bss.  */
+
+static unsigned int
+m68k_section_type_flags (tree decl, const char *name, int reloc)
+{
+  unsigned int flags = default_section_type_flags (decl, name, reloc);
+
+  if (strcmp (name, ".remote.bss") == 0
+      || strncmp (name, ".remote.bss.", 12) == 0)
+    /* The default left the type to the assembler (SECTION_NOTYPE), which
+       knows .bss but not .remote.bss.  */
+    flags = (flags | SECTION_BSS) & ~SECTION_NOTYPE;
+  return flags;
+}
+
+/* Return true if X refers to remote data, other than through the
+   legitimate form (an UNSPEC_A6OFF).  */
+
+bool
+m68k_remote_reference_p (rtx x)
+{
+  subrtx_var_iterator::array_type array;
+
+  if (!TARGET_A6REL)
+    return false;
+  FOR_EACH_SUBRTX_VAR (iter, array, x, ALL)
+    {
+      rtx y = *iter;
+      if (GET_CODE (y) == UNSPEC && XINT (y, 1) == UNSPEC_A6OFF)
+	iter.skip_subrtxes ();
+      else if (GET_CODE (y) == SYMBOL_REF
+	       && (SYMBOL_REF_FLAGS (y) & M68K_SYMBOL_FLAG_REMOTE))
+	return true;
+    }
+  return false;
+}
+
+/* Return a register holding the address of the remote data constant X
+   (a symbol, or a symbol plus an offset).  */
+
+rtx
+m68k_legitimize_remote_address (rtx x)
+{
+  rtx off = gen_reg_rtx (Pmode);
+  rtx addr = gen_reg_rtx (Pmode);
+
+  emit_insn (gen_rtx_SET (off, gen_rtx_UNSPEC (Pmode, gen_rtvec (1, x),
+					       UNSPEC_A6OFF)));
+  emit_insn (gen_rtx_SET (addr, gen_rtx_PLUS (Pmode, off,
+					     gen_rtx_REG (Pmode, A6_REG))));
+  return addr;
 }
 
 /* Implement TARGET_GET_RAW_ARG_MODE and TARGET_GET_RAW_RESULT_MODE,
@@ -2301,6 +2466,23 @@ m68k_legitimize_address (rtx x, rtx oldx, machine_mode mode)
   if (m68k_tls_symbol_p (x))
     return m68k_legitimize_tls_address (x);
 
+  /* Remote data: replace the symbolic constant with a register holding
+     its address.  */
+  if (m68k_remote_reference_p (x))
+    {
+      if (CONSTANT_P (x))
+	return m68k_legitimize_remote_address (x);
+      if (GET_CODE (x) == PLUS)
+	{
+	  x = copy_rtx (x);
+	  if (CONSTANT_P (XEXP (x, 0)) && m68k_remote_reference_p (XEXP (x, 0)))
+	    XEXP (x, 0) = m68k_legitimize_remote_address (XEXP (x, 0));
+	  if (CONSTANT_P (XEXP (x, 1)) && m68k_remote_reference_p (XEXP (x, 1)))
+	    XEXP (x, 1) = m68k_legitimize_remote_address (XEXP (x, 1));
+	  return x;
+	}
+    }
+
   if (GET_CODE (x) == PLUS)
     {
       int ch = (x) != (oldx);
@@ -2918,7 +3100,7 @@ m68k_illegitimate_symbolic_constant_p (rtx x)
 	  && !offset_within_block_p (base, INTVAL (offset)))
 	return true;
     }
-  return m68k_tls_reference_p (x, false);
+  return m68k_tls_reference_p (x, false) || m68k_remote_reference_p (x);
 }
 
 /* Implement TARGET_CANNOT_FORCE_CONST_MEM.  */
@@ -2954,7 +3136,7 @@ m68k_legitimate_constant_address_p (rtx x, unsigned int reach, bool strict_p)
 	return false;
     }
 
-  return !m68k_tls_reference_p (x, false);
+  return !m68k_tls_reference_p (x, false) && !m68k_remote_reference_p (x);
 }
 
 /* Return true if X is a LABEL_REF for a jump table.  Assume that unplaced

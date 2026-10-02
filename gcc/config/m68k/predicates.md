@@ -74,8 +74,10 @@
 ;; because pc-relative addresses don't satisfy the predicate
 ;; "general_src_operand".
 
+;; Remote data (the remote attribute) has no pc- or a6-relative address.
 (define_predicate "pcrel_address"
-  (match_code "symbol_ref,label_ref,const"))
+  (and (match_code "symbol_ref,label_ref,const")
+       (match_test "!m68k_remote_reference_p (op)")))
 
 ;; Accept integer operands in the range 0..0xffffffff.  We have to
 ;; check the range carefully since this predicate is used in DImode

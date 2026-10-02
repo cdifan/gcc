@@ -199,6 +199,10 @@ static void m68k_asm_final_postscan_insn (FILE *, rtx_insn *insn, rtx [], int);
 static tree m68k_handle_callconv_attribute (tree *, tree, tree, int, bool *);
 static int m68k_comp_type_attributes (const_tree, const_tree);
 static void m68k_insert_attributes (tree, tree *);
+static pad_direction m68k_function_arg_padding (machine_mode, const_tree);
+static void m68k_setup_incoming_varargs (cumulative_args_t,
+					 const function_arg_info &, int *,
+					 int);
 
 /* Initialize the GCC target structure.  */
 
@@ -338,6 +342,12 @@ static void m68k_insert_attributes (tree, tree *);
 
 #undef TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE m68k_function_arg_advance
+
+#undef TARGET_FUNCTION_ARG_PADDING
+#define TARGET_FUNCTION_ARG_PADDING m68k_function_arg_padding
+
+#undef TARGET_SETUP_INCOMING_VARARGS
+#define TARGET_SETUP_INCOMING_VARARGS m68k_setup_incoming_varargs
 
 #undef TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P m68k_legitimate_constant_p
@@ -899,6 +909,10 @@ m68k_handle_fndecl_attribute (tree *node, tree name,
    used for all functions under -mos9call, and for function types with
    the os9call attribute without it.  */
 
+/* True once an os9call attribute has been applied in this translation
+   unit; see m68k_function_arg_regno_p.  */
+static bool m68k_os9call_attribute_seen;
+
 /* Return true if functions of type FNTYPE use the OS-9 convention.
    Libcalls (no type) and member functions (METHOD_TYPE) always use
    the stack convention.  */
@@ -983,6 +997,8 @@ m68k_handle_callconv_attribute (tree *node, tree name, tree, int,
      convention has a single type (and a single C++ mangling).  */
   if (os9call == (TARGET_OS9CALL != 0))
     *no_add_attrs = true;
+  else if (os9call)
+    m68k_os9call_attribute_seen = true;
 
   return NULL_TREE;
 }
@@ -1699,22 +1715,113 @@ m68k_ok_for_sibcall_p (tree decl, tree exp)
   return false;
 }
 
-/* On the m68k all args are always pushed.  */
+/* Implement FUNCTION_ARG_REGNO_P.  d0 and d1 carry arguments under the
+   OS-9 convention.  Without -mos9call, they only do so once an os9call
+   attribute has been seen, so that code without either is unchanged.  */
+
+bool
+m68k_function_arg_regno_p (unsigned int regno)
+{
+  return ((regno == D0_REG || regno == D0_REG + 1)
+	  && (TARGET_OS9CALL || m68k_os9call_attribute_seen));
+}
+
+/* For the OS-9 convention, return the register that argument ARG goes
+   in, given the arguments so far in CUM, or NULL_RTX for the stack.
+   Argument 1 goes in d0 if it's a scalar of up to 4 bytes, or in d0:d1
+   if it's an 8-byte scalar; argument 2 goes in d1 if it's a scalar of up
+   to 4 bytes and argument 1 used d0 alone.  Aggregates, complex values
+   and long double always go on the stack.  Named and unnamed arguments
+   are treated alike, as in a K&R call.  */
 
 static rtx
-m68k_function_arg (cumulative_args_t, const function_arg_info &)
+m68k_os9call_arg_reg (const CUMULATIVE_ARGS *cum, const function_arg_info &arg)
 {
+  HOST_WIDE_INT size;
+
+  if (!cum->os9call || arg.end_marker_p () || cum->argno > 1)
+    return NULL_RTX;
+  if (arg.type != NULL_TREE
+      && (AGGREGATE_TYPE_P (arg.type)
+	  || TREE_CODE (arg.type) == COMPLEX_TYPE
+	  || TREE_CODE (arg.type) == VECTOR_TYPE))
+    return NULL_RTX;
+  if (arg.mode == BLKmode || arg.mode == XFmode)
+    return NULL_RTX;
+
+  size = GET_MODE_SIZE (arg.mode);
+
+  if (cum->argno == 0 && (size <= 4 || size == 8))
+    return gen_rtx_REG (arg.mode, D0_REG);
+  if (cum->argno == 1 && cum->d1_free && size <= 4)
+    return gen_rtx_REG (arg.mode, D0_REG + 1);
   return NULL_RTX;
 }
+
+/* Implement TARGET_FUNCTION_ARG.  Under the stack convention, all
+   arguments are pushed.  */
+
+static rtx
+m68k_function_arg (cumulative_args_t cum_v, const function_arg_info &arg)
+{
+  return m68k_os9call_arg_reg (get_cumulative_args (cum_v), arg);
+}
+
+/* Implement TARGET_FUNCTION_ARG_ADVANCE.  */
 
 static void
 m68k_function_arg_advance (cumulative_args_t cum_v,
 			   const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+  rtx reg = m68k_os9call_arg_reg (cum, arg);
 
-  cum->bytes += (arg.promoted_size_in_bytes () + 3) & ~3;
+  /* Aggregates smaller than a stack slot are padded differently under
+     -mos9call (see m68k_function_arg_padding), and the padding can't
+     depend on the call's convention.  */
+  if (arg.type != NULL_TREE && AGGREGATE_TYPE_P (arg.type)
+      && int_size_in_bytes (arg.type) > 0
+      && int_size_in_bytes (arg.type) < UNITS_PER_WORD
+      && (cum->os9call != 0) != (TARGET_OS9CALL != 0))
+    error ("passing a structure or union smaller than 4 bytes by value "
+	   "needs the calling convention selected by %<-mos9call%>");
+
+  if (reg != NULL_RTX)
+    cum->d1_free = (cum->argno == 0 && REGNO (reg) == D0_REG
+		    && GET_MODE_SIZE (arg.mode) <= 4);
+  else
+    {
+      cum->d1_free = 0;
+      cum->bytes += (arg.promoted_size_in_bytes () + 3) & ~3;
+    }
   cum->argno++;
+}
+
+/* Implement TARGET_FUNCTION_ARG_PADDING.  Under -mos9call, aggregates
+   sit at the start (lowest address) of their stack slot, as in
+   Microware C; GCC normally right-justifies those smaller than 4
+   bytes.  */
+
+static pad_direction
+m68k_function_arg_padding (machine_mode mode, const_tree type)
+{
+  if (TARGET_OS9CALL && type != NULL_TREE && AGGREGATE_TYPE_P (type))
+    return PAD_UPWARD;
+  return default_function_arg_padding (mode, type);
+}
+
+/* Implement TARGET_SETUP_INCOMING_VARARGS.  A variadic function using
+   the OS-9 convention would need a va_list that starts in d0/d1, which
+   isn't implemented yet.  */
+
+static void
+m68k_setup_incoming_varargs (cumulative_args_t cum_v,
+			     const function_arg_info &, int *,
+			     int second_time)
+{
+  if (get_cumulative_args (cum_v)->os9call && !second_time)
+    error ("variadic functions can%'t be defined with the OS-9 calling "
+	   "convention yet");
 }
 
 /* Convert X to a legitimate function call memory reference and return the

@@ -114,6 +114,7 @@ extern rtx m68k_legitimize_call_address (rtx);
 extern rtx m68k_legitimize_sibcall_address (rtx);
 extern int m68k_hard_regno_rename_ok(unsigned int, unsigned int);
 extern poly_int64 m68k_push_rounding (poly_int64);
+extern bool m68k_function_arg_regno_p (unsigned int);
 
 #ifdef TREE_CODE
 extern bool m68k_os9call_type_p (const_tree);

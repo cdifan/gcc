@@ -1,7 +1,7 @@
 /* With a frame of 32 KB or more, the epilogue may use a1 as an index
    register; under the OS-9 convention a1 is saved and the registers are
    restored with movem, which computes the address before loading a1.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -fno-omit-frame-pointer" } */
 
 extern void __attribute__ ((stackcall)) clobber (void);

@@ -1,6 +1,6 @@
 /* Without -mos9call, va_start is folded as usual: the OS-9 convention's
    va_start hook is only installed with -mos9call.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */
 
 #include <stdarg.h>

@@ -3,7 +3,7 @@
    read-only variables are data, addressed relative to a6.  A read-only
    integer holding an address is data too, but only its own translation
    unit can know: it warns.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */
 
 struct ops;

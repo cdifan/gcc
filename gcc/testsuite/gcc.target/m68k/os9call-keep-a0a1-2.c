@@ -1,7 +1,7 @@
 /* -mos9call: stack convention callees (stackcall, libcalls such as
    __muldi3) may clobber a0 and a1, so callers don't keep values there
    across those calls.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel -mos9call" } */
 
 extern int s (int) __attribute__ ((stackcall));

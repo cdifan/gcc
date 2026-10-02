@@ -2,7 +2,7 @@
    values always go on the stack, and a struct as argument 1 leaves d0
    and d1 unused.  Structs smaller than 4 bytes sit at the start of
    their 4-byte slot, as in Microware C.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel" } */
 
 struct s1 { char c; };

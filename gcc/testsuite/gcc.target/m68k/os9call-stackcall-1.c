@@ -1,7 +1,7 @@
 /* Under -mos9call, runtime functions keep the stack convention: GCC's
    built-in declarations, header-style declarations and K&R
    redeclarations get the stackcall attribute.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-mos9call -mpcrel -ma6rel" } */
 
 typedef __SIZE_TYPE__ size_t;

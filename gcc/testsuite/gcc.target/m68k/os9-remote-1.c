@@ -1,7 +1,7 @@
 /* The remote attribute: variables in .remote.data / .remote.bss (the
    latter without contents), addressed as a6 plus a 32-bit offset
    (move.l #sym).  Normal variables stay a6-relative.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel -fno-common" } */
 
 char big[70000] __attribute__ ((remote));

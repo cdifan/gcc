@@ -1,7 +1,7 @@
 /* -mbuiltin=os9call (Microware's clib): memcpy for a struct copy and
    explicit calls to strlen, malloc and free use the OS-9 convention;
    libgcc helpers and complex arithmetic keep the stack convention.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mbuiltin=os9call -mpcrel -ma6rel" } */
 
 typedef __SIZE_TYPE__ size_t;

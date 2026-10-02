@@ -1,7 +1,7 @@
 /* OS-9 convention, return values: float in d0, double in d0:d1;
    aggregates (of any size), long double and complex values in memory,
    at the address the caller passes in a0.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 struct s1 { char c; };

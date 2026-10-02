@@ -1,6 +1,6 @@
 /* A function that saves only call-clobbered registers (d1, a0, a1) must
    still restore them; the restores mustn't be deleted as dead.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 extern void __attribute__ ((stackcall)) clobber (void);

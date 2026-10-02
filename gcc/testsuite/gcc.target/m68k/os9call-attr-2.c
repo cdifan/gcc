@@ -1,6 +1,6 @@
 /* Calling-convention attributes under -mos9call: os9call restates the
    default; stackcall and plain function types are incompatible.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-mos9call -mpcrel -ma6rel" } */
 
 typedef int (__attribute__ ((os9call)) *os9fn) (int);

@@ -1,7 +1,7 @@
 /* -mos9call: OS-9 convention callees preserve a0 and a1, so callers keep
    values there across the calls, direct and indirect, instead of saving
    call-saved registers.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel -mos9call" } */
 
 extern int g (int);

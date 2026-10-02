@@ -1,6 +1,6 @@
 /* Frames of 32 KB or more that save only one or two integer registers,
    one of them a1: a1 is restored last (this used to ICE).  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O1 -mos9call -mpcrel -ma6rel -fno-omit-frame-pointer" } */
 
 extern void use (char *);

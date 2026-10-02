@@ -1,6 +1,6 @@
 /* OS-9 convention, caller side: argument 1 in d0, argument 2 in d1 if
    argument 1 used d0 alone, the rest on the stack.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel" } */
 
 extern void f1 (int);

@@ -1,6 +1,6 @@
 /* Without -mos9call, an os9call variadic declaration can be called; the
    arguments are placed like a K&R call.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */
 
 extern int __attribute__ ((os9call)) create (char *, int, int, ...);

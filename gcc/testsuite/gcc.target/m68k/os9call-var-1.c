@@ -1,6 +1,6 @@
 /* OS-9 convention: variadic calls are placed like unprototyped (K&R)
    calls, with the usual promotions of unnamed arguments.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel" } */
 
 extern void v1 (int, ...);

@@ -1,5 +1,5 @@
 /* Without -mos9call, only os9call functions save d1, a0 and a1.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 extern void clobber (void);

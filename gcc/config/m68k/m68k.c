@@ -65,6 +65,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "opts.h"
 #include "optabs.h"
 #include "builtins.h"
+#include "gimple.h"
+#include "gimplify.h"
+#include "langhooks.h"
 #include "rtl-iter.h"
 #include "toplev.h"
 
@@ -205,6 +208,9 @@ static pad_direction m68k_function_arg_padding (machine_mode, const_tree);
 static void m68k_setup_incoming_varargs (cumulative_args_t,
 					 const function_arg_info &, int *,
 					 int);
+static tree m68k_build_builtin_va_list (void);
+static void m68k_va_start (tree, rtx);
+static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
 
 /* Initialize the GCC target structure.  */
 
@@ -359,6 +365,15 @@ static void m68k_setup_incoming_varargs (cumulative_args_t,
 
 #undef TARGET_SETUP_INCOMING_VARARGS
 #define TARGET_SETUP_INCOMING_VARARGS m68k_setup_incoming_varargs
+
+#undef TARGET_BUILD_BUILTIN_VA_LIST
+#define TARGET_BUILD_BUILTIN_VA_LIST m68k_build_builtin_va_list
+
+#undef TARGET_EXPAND_BUILTIN_VA_START
+#define TARGET_EXPAND_BUILTIN_VA_START m68k_va_start
+
+#undef TARGET_GIMPLIFY_VA_ARG_EXPR
+#define TARGET_GIMPLIFY_VA_ARG_EXPR m68k_gimplify_va_arg
 
 #undef TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P m68k_legitimate_constant_p
@@ -2057,18 +2072,194 @@ m68k_function_arg_padding (machine_mode mode, const_tree type)
   return default_function_arg_padding (mode, type);
 }
 
-/* Implement TARGET_SETUP_INCOMING_VARARGS.  A variadic function using
-   the OS-9 convention would need a va_list that starts in d0/d1, which
-   isn't implemented yet.  */
+/* Variadic functions with the OS-9 convention.  Unnamed arguments are
+   placed like those of a K&R call, so the first one can be in d1: when
+   exactly one named argument was passed, in d0 alone, an unnamed int or
+   pointer comes next in d1, while a double (or anything else) goes on
+   the stack.  Every other unnamed argument is on the stack.
+
+   Under -mos9call, va_list is therefore a structure (an array of one,
+   as on x86-64): __stk points at the next stack argument, and __d1 at a
+   copy of d1 saved by the prologue, or is null once d1 has been used or
+   skipped, or if it can't hold an argument.  Without -mos9call, va_list
+   stays a plain pointer, and os9call variadic functions can only be
+   defined when no unnamed argument can be in d1.  */
+
+/* The stack slot where the prologue saved d1, if the function being
+   expanded needs it (see m68k_setup_incoming_varargs).  */
+static GTY(()) rtx m68k_va_d1_slot;
+
+/* Implement TARGET_SETUP_INCOMING_VARARGS.  CUM_V is the state before
+   the last named argument ARG.  */
 
 static void
 m68k_setup_incoming_varargs (cumulative_args_t cum_v,
-			     const function_arg_info &, int *,
+			     const function_arg_info &arg, int *,
 			     int second_time)
 {
-  if (get_cumulative_args (cum_v)->os9call && !second_time)
-    error ("variadic functions can%'t be defined with the OS-9 calling "
-	   "convention yet");
+  CUMULATIVE_ARGS next = *get_cumulative_args (cum_v);
+  bool d1_pending;
+
+  if (second_time)
+    return;
+  m68k_va_d1_slot = NULL_RTX;
+  if (!next.os9call)
+    return;
+
+  /* Advance past the last named argument (stdarg functions always have
+     one in C).  */
+  if (stdarg_p (TREE_TYPE (current_function_decl)))
+    {
+      rtx reg = m68k_os9call_arg_reg (&next, arg);
+      next.d1_free = (reg != NULL_RTX && next.argno == 0
+		      && REGNO (reg) == D0_REG
+		      && GET_MODE_SIZE (arg.mode) <= 4);
+      next.argno++;
+    }
+  d1_pending = next.argno == 1 && next.d1_free;
+
+  if (!d1_pending)
+    return;
+  if (!TARGET_OS9CALL)
+    {
+      error ("this variadic function needs %<-mos9call%>: with one "
+	     "argument in d0, its first unnamed argument can be in d1");
+      return;
+    }
+  m68k_va_d1_slot = assign_stack_local (SImode, 4, 0);
+  emit_move_insn (m68k_va_d1_slot, gen_rtx_REG (SImode, D0_REG + 1));
+}
+
+/* Implement TARGET_BUILD_BUILTIN_VA_LIST.  */
+
+static tree
+m68k_build_builtin_va_list (void)
+{
+  tree record, type_decl, f_stk, f_d1;
+
+  if (!TARGET_OS9CALL)
+    return std_build_builtin_va_list ();
+
+  record = lang_hooks.types.make_type (RECORD_TYPE);
+  type_decl = build_decl (BUILTINS_LOCATION, TYPE_DECL,
+			  get_identifier ("__va_list_tag"), record);
+  f_stk = build_decl (BUILTINS_LOCATION, FIELD_DECL,
+		      get_identifier ("__stk"), ptr_type_node);
+  f_d1 = build_decl (BUILTINS_LOCATION, FIELD_DECL,
+		     get_identifier ("__d1"), ptr_type_node);
+  DECL_FIELD_CONTEXT (f_stk) = record;
+  DECL_FIELD_CONTEXT (f_d1) = record;
+  TYPE_STUB_DECL (record) = type_decl;
+  TYPE_NAME (record) = type_decl;
+  TYPE_FIELDS (record) = f_stk;
+  DECL_CHAIN (f_stk) = f_d1;
+  layout_type (record);
+
+  return build_array_type (record, build_index_type (size_zero_node));
+}
+
+/* Implement TARGET_EXPAND_BUILTIN_VA_START.  */
+
+static void
+m68k_va_start (tree valist, rtx nextarg)
+{
+  tree record, f_stk, f_d1, stk, d1, t;
+
+  if (!TARGET_OS9CALL)
+    {
+      std_expand_builtin_va_start (valist, nextarg);
+      return;
+    }
+
+  record = TREE_TYPE (va_list_type_node);
+  f_stk = TYPE_FIELDS (record);
+  f_d1 = DECL_CHAIN (f_stk);
+  valist = build_simple_mem_ref (valist);
+  TREE_TYPE (valist) = record;
+  stk = build3 (COMPONENT_REF, TREE_TYPE (f_stk), unshare_expr (valist),
+		f_stk, NULL_TREE);
+  d1 = build3 (COMPONENT_REF, TREE_TYPE (f_d1), unshare_expr (valist),
+	       f_d1, NULL_TREE);
+
+  t = build2 (MODIFY_EXPR, ptr_type_node, stk,
+	      make_tree (ptr_type_node, nextarg));
+  TREE_SIDE_EFFECTS (t) = 1;
+  expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
+
+  t = build2 (MODIFY_EXPR, ptr_type_node, d1,
+	      m68k_va_d1_slot != NULL_RTX
+	      ? make_tree (ptr_type_node,
+			   force_reg (Pmode, XEXP (m68k_va_d1_slot, 0)))
+	      : null_pointer_node);
+  TREE_SIDE_EFFECTS (t) = 1;
+  expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
+}
+
+/* Implement TARGET_GIMPLIFY_VA_ARG_EXPR.  */
+
+static tree
+m68k_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
+		      gimple_seq *post_p)
+{
+  tree record, f_stk, f_d1, stk, d1, addr, ptrtype;
+  HOST_WIDE_INT size, slot, pad;
+  bool scalar;
+
+  if (!TARGET_OS9CALL)
+    return std_gimplify_va_arg_expr (valist, type, pre_p, post_p);
+
+  record = TREE_TYPE (va_list_type_node);
+  f_stk = TYPE_FIELDS (record);
+  f_d1 = DECL_CHAIN (f_stk);
+  stk = build3 (COMPONENT_REF, TREE_TYPE (f_stk), valist, f_stk, NULL_TREE);
+  d1 = build3 (COMPONENT_REF, TREE_TYPE (f_d1), unshare_expr (valist), f_d1,
+	       NULL_TREE);
+
+  size = int_size_in_bytes (type);
+  slot = (size + 3) & -4;
+  scalar = (!AGGREGATE_TYPE_P (type)
+	    && TREE_CODE (type) != COMPLEX_TYPE
+	    && TREE_CODE (type) != VECTOR_TYPE);
+  /* Scalars smaller than a slot are right-justified; aggregates sit at
+     the start of their slot (m68k_function_arg_padding).  */
+  pad = scalar && size < 4 ? 4 - size : 0;
+  addr = create_tmp_var (ptr_type_node, "va_addr");
+  ptrtype = build_pointer_type_for_mode (type, ptr_mode, true);
+
+  if (scalar && size > 0 && size <= 4)
+    {
+      /* From the saved d1 if it's still pending, else from the stack.  */
+      tree lab_stk = create_artificial_label (UNKNOWN_LOCATION);
+      tree lab_over = create_artificial_label (UNKNOWN_LOCATION);
+      tree t = build2 (EQ_EXPR, boolean_type_node, d1, null_pointer_node);
+
+      t = build3 (COND_EXPR, void_type_node, t,
+		  build1 (GOTO_EXPR, void_type_node, lab_stk), NULL_TREE);
+      gimplify_and_add (t, pre_p);
+      gimplify_assign (addr,
+		       fold_build_pointer_plus_hwi (unshare_expr (d1), pad),
+		       pre_p);
+      gimplify_assign (unshare_expr (d1), null_pointer_node, pre_p);
+      gimple_seq_add_stmt (pre_p, gimple_build_goto (lab_over));
+      gimple_seq_add_stmt (pre_p, gimple_build_label (lab_stk));
+      gimplify_assign (addr, fold_build_pointer_plus_hwi (stk, pad), pre_p);
+      gimplify_assign (unshare_expr (stk),
+		       fold_build_pointer_plus_hwi (unshare_expr (stk), slot),
+		       pre_p);
+      gimple_seq_add_stmt (pre_p, gimple_build_label (lab_over));
+    }
+  else
+    {
+      /* Anything else is on the stack, and d1 is no longer used.  */
+      gimplify_assign (unshare_expr (d1), null_pointer_node, pre_p);
+      gimplify_assign (addr, fold_build_pointer_plus_hwi (stk, pad), pre_p);
+      gimplify_assign (unshare_expr (stk),
+		       fold_build_pointer_plus_hwi (unshare_expr (stk), slot),
+		       pre_p);
+    }
+
+  addr = fold_convert (ptrtype, addr);
+  return build_va_arg_indirect_ref (addr);
 }
 
 /* Convert X to a legitimate function call memory reference and return the

@@ -23923,8 +23923,11 @@ select either convention for individual function types
 @code{__OS9CALL__} is defined when this option is in effect.
 @samp{libgcc} must be built without this option.
 
-Some features are rejected with @option{-mos9call}: defining variadic
-functions with the OS-9 convention, passing a structure smaller than 4
+Under @option{-mos9call}, @code{va_list} is a structure, since the first
+unnamed argument of a variadic function can be in @code{d1}; without it,
+an @code{os9call} variadic function can only be defined if that can't
+happen.  Some features are rejected with @option{-mos9call}: passing a
+structure smaller than 4
 bytes by value between conventions, taking the address of a nested
 function (which needs a trampoline), @code{__builtin_apply_args},
 @code{__builtin_apply} and @code{__builtin_return}, and the options

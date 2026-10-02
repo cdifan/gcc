@@ -1115,15 +1115,24 @@ m68k_output_os9_stkcheck (rtx n, bool save_d0)
 
   ops[0] = gen_rtx_REG (SImode, D0_REG);
   ops[1] = GEN_INT (-INTVAL (n));
+  /* The push isn't in the RTL, so tell the unwinder about it.  */
   if (save_d0)
-    output_asm_insn ("move%.l %0,%-", ops);
+    {
+      output_asm_insn ("move%.l %0,%-", ops);
+      if (dwarf2out_do_cfi_asm ())
+	output_asm_insn (".cfi_adjust_cfa_offset 4", ops);
+    }
   if (INTVAL (n) <= 128)
     output_asm_insn ("moveq %1,%0", ops);
   else
     output_asm_insn ("move%.l %1,%0", ops);
   output_asm_insn (TARGET_PCREL ? "bsr%.w _stkcheck" : "jsr _stkcheck", ops);
   if (save_d0)
-    output_asm_insn ("move%.l %+,%0", ops);
+    {
+      output_asm_insn ("move%.l %+,%0", ops);
+      if (dwarf2out_do_cfi_asm ())
+	output_asm_insn (".cfi_adjust_cfa_offset -4", ops);
+    }
   return "";
 }
 
@@ -1208,21 +1217,14 @@ m68k_select_section (tree decl, int reloc, unsigned HOST_WIDE_INT align)
   return default_elf_select_section (decl, reloc, align);
 }
 
-/* Implement TARGET_ASM_UNIQUE_SECTION (-fdata-sections), likewise.  */
+/* Implement TARGET_ASM_UNIQUE_SECTION (-fdata-sections), likewise.
+   Remote data has its section already (m68k_encode_section_info names
+   it), so GCC doesn't ask for it here: remote variables stay in
+   .remote.data and .remote.bss with -fdata-sections too.  */
 
 static void
 m68k_unique_section (tree decl, int reloc)
 {
-  if (m68k_remote_decl_p (decl))
-    {
-      const char *name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
-      name = targetm.strip_name_encoding (name);
-      set_decl_section_name (decl, ACONCAT (((bss_initializer_p (decl)
-					      ? ".remote.bss."
-					      : ".remote.data."),
-					     name, NULL)));
-      return;
-    }
   if (TARGET_A6REL && m68k_readonly_data_p (decl))
     reloc |= 3;
   else if (decl && TREE_CODE (decl) == VAR_DECL)

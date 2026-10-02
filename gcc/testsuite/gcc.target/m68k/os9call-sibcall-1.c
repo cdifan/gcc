@@ -1,6 +1,6 @@
 /* No sibling calls from OS-9 convention functions (the epilogue restores
    d1, a0 and a1), nor from stack convention functions to OS-9 ones.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */
 
 extern int __attribute__ ((os9call)) mwf (int);

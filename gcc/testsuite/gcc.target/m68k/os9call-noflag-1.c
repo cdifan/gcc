@@ -1,6 +1,6 @@
 /* Without -mos9call: os9call functions use the OS-9 convention, all
    others the stack convention.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */
 
 extern int __attribute__ ((os9call)) mw (int, int, int);

@@ -1,6 +1,6 @@
 /* Without -mos9call, calls through an os9call pointer take a double
    result from d0:d1, also with -m68881.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel -m68881 -fomit-frame-pointer" } */
 
 double (__attribute__ ((os9call)) *fp) (void);

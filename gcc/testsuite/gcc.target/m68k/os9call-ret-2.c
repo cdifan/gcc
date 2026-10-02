@@ -1,6 +1,6 @@
 /* OS-9 convention with -m68881: float and double are still returned in
    d0 and d0:d1, not fp0, and fp0/fp1 are saved like other registers.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -m68881 -fomit-frame-pointer -w" } */
 
 extern double g (void);

@@ -1,7 +1,7 @@
 /* Under -mos9call, runtime functions keep the stack convention: memcpy
    for a struct copy, explicit calls to strlen, malloc and free, and
    libgcc helpers (libcalls).  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel" } */
 
 typedef __SIZE_TYPE__ size_t;

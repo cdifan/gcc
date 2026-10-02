@@ -1,6 +1,6 @@
 /* Calls through pointers to OS-9 convention functions take float and
    double results from d0 and d0:d1, also with -m68881.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -m68881 -fomit-frame-pointer -w" } */
 
 double (*fp) (void);

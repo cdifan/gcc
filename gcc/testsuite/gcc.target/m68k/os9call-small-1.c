@@ -1,6 +1,6 @@
 /* A struct smaller than 4 bytes can't be passed by value to a function
    whose convention differs from the -mos9call setting.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */
 
 struct s1 { char c; };

@@ -1,6 +1,6 @@
 /* OS-9 convention, callee side: arguments are read from d0, d1 and the
    stack, following the same rules as the caller.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 struct s1 { char c; };

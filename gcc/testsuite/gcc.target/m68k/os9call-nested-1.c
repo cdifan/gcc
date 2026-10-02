@@ -1,6 +1,6 @@
 /* Under -mos9call, nested functions can be called directly, but not
    through a trampoline.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-mos9call -mpcrel -ma6rel" } */
 
 extern void use (int (*) (int));

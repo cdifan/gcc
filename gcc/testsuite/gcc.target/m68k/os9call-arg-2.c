@@ -1,7 +1,7 @@
 /* OS-9 convention, caller side: 8-byte scalars as argument 1 go in
    d0:d1, otherwise on the stack; after a double first argument, or a
    double second argument, everything else goes on the stack.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel" } */
 
 extern void fd (double);

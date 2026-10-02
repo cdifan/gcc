@@ -1,6 +1,6 @@
 /* -mos9stkchk without -mos9call (stack convention: d0 holds no
    argument), with a frame pointer, and not in interrupt handlers.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9stkchk -mpcrel -ma6rel -fno-omit-frame-pointer" } */
 
 extern void use (char *);

@@ -1,5 +1,5 @@
 /* Without -mos9call, __OS9CALL__ isn't defined, but the attributes exist.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-mpcrel -ma6rel" } */
 
 #ifdef __OS9CALL__

@@ -1,6 +1,6 @@
 /* Frames of 32 KB or more with -m68881: the FPU registers are restored
    before a1, which is the index register.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -m68881 -fno-omit-frame-pointer -w" } */
 
 extern void use (char *);

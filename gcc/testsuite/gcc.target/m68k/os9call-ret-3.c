@@ -1,6 +1,6 @@
 /* Without -mos9call, only os9call functions return small structs in
    memory and doubles in d0:d1 with -m68881.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel -m68881 -fomit-frame-pointer" } */
 
 struct s4 { int i; };

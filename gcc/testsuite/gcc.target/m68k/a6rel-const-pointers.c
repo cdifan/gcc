@@ -2,7 +2,7 @@
    addressed relative to a6 and placed in a writable data section: OS-9
    only relocates addresses in the initialized data.  Other read-only
    variables stay in the code area, addressed PC-relative.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */
 
 const char *const tbl[] = { "a", "b" };

@@ -1,5 +1,5 @@
 /* __OS9CALL__ and the calling-convention attributes under -mos9call.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-mos9call -mpcrel -ma6rel" } */
 
 #ifndef __OS9CALL__

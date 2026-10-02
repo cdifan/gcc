@@ -2,7 +2,7 @@
    function: move.l #-N,d0 and bsr _stkcheck, with N = frame + register
    saves + link + 64 (leaf) or 68.  d0 is saved around it when it holds
    an argument.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mos9stkchk -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 extern void g (void);

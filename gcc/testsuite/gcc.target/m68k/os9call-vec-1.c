@@ -1,6 +1,6 @@
 /* Under the OS-9 convention, vectors are passed on the stack and
    returned in memory, like aggregates.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 typedef int v2si __attribute__ ((vector_size (8)));

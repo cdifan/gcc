@@ -1,6 +1,6 @@
 /* Complex multiply and divide call libgcc with the stack convention
    under -mos9call: all arguments pushed, the result in d0:d1.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 _Complex float m (_Complex float a, _Complex float b) { return a * b; }

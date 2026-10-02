@@ -1,7 +1,7 @@
 /* Variadic functions defined with the OS-9 convention: with one named
    argument in d0, the prologue saves d1, where the first unnamed
    argument can be; with two named arguments, nothing needs saving.  */
-/* { dg-do compile } */
+/* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mos9call -mpcrel -ma6rel -fomit-frame-pointer" } */
 
 #include <stdarg.h>

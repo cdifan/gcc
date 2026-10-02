@@ -953,6 +953,7 @@ m68k_init_cumulative_args (CUMULATIVE_ARGS *cum, const_tree fntype,
   cum->os9call = m68k_os9call_p (fntype, fndecl);
   cum->argno = 0;
   cum->d1_free = 0;
+  cum->d1_used = 0;
 }
 
 /* Handle the os9call and stackcall attributes; arguments as in
@@ -1181,6 +1182,47 @@ m68k_initial_elimination_offset (int from, int to)
     }
 }
 
+/* Return true if the function being compiled uses the OS-9 convention.  */
+
+static bool
+m68k_os9call_current_p (void)
+{
+  return (current_function_decl != NULL_TREE
+	  && m68k_os9call_p (TREE_TYPE (current_function_decl),
+			     current_function_decl));
+}
+
+/* For an OS-9 convention function, return true if d1 carries an
+   incoming argument or the return value; it isn't preserved then.  */
+
+static bool
+m68k_os9call_d1_carries_value (void)
+{
+  tree result = DECL_RESULT (current_function_decl);
+  rtx value;
+
+  if (crtl->args.info.d1_used)
+    return true;
+  if (result == NULL_TREE
+      || VOID_TYPE_P (TREE_TYPE (result))
+      || aggregate_value_p (result, current_function_decl))
+    return false;
+  value = FUNCTION_VALUE (TREE_TYPE (result), current_function_decl);
+  return (REG_P (value)
+	  && REGNO (value) <= D0_REG + 1
+	  && END_REGNO (value) > D0_REG + 1);
+}
+
+/* Return true if the epilogue of the current function may restore its
+   registers relative to a frame of 32 KB or more, using a1 as an index
+   register (see m68k_expand_epilogue).  This errs on the large side.  */
+
+static bool
+m68k_big_frame_p (void)
+{
+  return get_frame_size () + 16 * 4 + 8 * 12 >= 0x8000;
+}
+
 /* Refer to the array `regs_ever_live' to determine which registers
    to save; `regs_ever_live[I]' is nonzero if register number I
    is ever used in the function.  This function is responsible for
@@ -1235,6 +1277,23 @@ m68k_save_reg (unsigned int regno, bool interrupt_handler)
 
       if (!crtl->is_leaf && call_used_or_fixed_reg_p (regno))
 	return true;
+    }
+
+  /* The OS-9 convention preserves every register except d0 and those
+     carrying an incoming argument or the return value: besides the
+     usual call-saved registers, d1, a0, a1, fp0 and fp1 when the
+     function uses them or makes calls that may clobber them.  a1 is
+     also saved when a big frame's epilogue uses it as an index.  */
+  if (!interrupt_handler
+      && regno != D0_REG
+      && call_used_or_fixed_reg_p (regno)
+      && m68k_os9call_current_p ())
+    {
+      if (regno == D0_REG + 1 && m68k_os9call_d1_carries_value ())
+	return false;
+      if (regno == A1_REG && m68k_big_frame_p ())
+	return true;
+      return df_regs_ever_live_p (regno) || !crtl->is_leaf;
     }
 
   /* Never need to save registers that aren't touched.  */
@@ -1540,9 +1599,13 @@ m68k_expand_epilogue (bool sibcall_p)
 	}
     }
 
-  if (current_frame.reg_no < MIN_MOVEM_REGS)
+  if (current_frame.reg_no < MIN_MOVEM_REGS
+      && !(big && (current_frame.reg_mask & (1 << A1_REG))))
     {
-      /* Restore each register separately in the same order moveml does.  */
+      /* Restore each register separately in the same order moveml does.
+	 When a1 is the index register and is restored too (always under
+	 the OS-9 convention), movem is used instead, since it computes
+	 the address before loading a1.  */
       int i;
       HOST_WIDE_INT offset;
 
@@ -1681,6 +1744,14 @@ m68k_ok_for_sibcall_p (tree decl, tree exp)
   if (CALL_EXPR_STATIC_CHAIN (exp))
     return false;
 
+  /* An OS-9 convention function restores d1, a0 and a1 in its epilogue,
+     which a sibling callee of the stack convention could then clobber;
+     and between conventions the argument and return registers differ.
+     So no sibling calls from OS-9 convention functions, nor to them.  */
+  if (m68k_os9call_current_p ()
+      || m68k_os9call_type_p (TREE_TYPE (TREE_TYPE (CALL_EXPR_FN (exp)))))
+    return false;
+
   if (!VOID_TYPE_P (TREE_TYPE (DECL_RESULT (cfun->decl))))
     {
       /* Check that the return value locations are the same.  For
@@ -1787,8 +1858,12 @@ m68k_function_arg_advance (cumulative_args_t cum_v,
 	   "needs the calling convention selected by %<-mos9call%>");
 
   if (reg != NULL_RTX)
-    cum->d1_free = (cum->argno == 0 && REGNO (reg) == D0_REG
-		    && GET_MODE_SIZE (arg.mode) <= 4);
+    {
+      cum->d1_free = (cum->argno == 0 && REGNO (reg) == D0_REG
+		      && GET_MODE_SIZE (arg.mode) <= 4);
+      if (END_REGNO (reg) > D0_REG + 1)
+	cum->d1_used = 1;
+    }
   else
     {
       cum->d1_free = 0;

@@ -503,6 +503,7 @@ struct m68k_cumulative_args
   int os9call;		/* Nonzero for the OS-9 calling convention.  */
   int argno;		/* Number of arguments scanned so far.  */
   int d1_free;		/* Nonzero if the next argument may go in d1.  */
+  int d1_used;		/* Nonzero if an argument went in d1.  */
 };
 #define CUMULATIVE_ARGS struct m68k_cumulative_args
 

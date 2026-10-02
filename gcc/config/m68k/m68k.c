@@ -196,6 +196,9 @@ static bool m68k_modes_tieable_p (machine_mode, machine_mode);
 static machine_mode m68k_promote_function_mode (const_tree, machine_mode,
 						int *, const_tree, int);
 static void m68k_asm_final_postscan_insn (FILE *, rtx_insn *insn, rtx [], int);
+static tree m68k_handle_callconv_attribute (tree *, tree, tree, int, bool *);
+static int m68k_comp_type_attributes (const_tree, const_tree);
+static void m68k_insert_attributes (tree, tree *);
 
 /* Initialize the GCC target structure.  */
 
@@ -277,6 +280,12 @@ static void m68k_asm_final_postscan_insn (FILE *, rtx_insn *insn, rtx [], int);
 
 #undef TARGET_ATTRIBUTE_TABLE
 #define TARGET_ATTRIBUTE_TABLE m68k_attribute_table
+
+#undef TARGET_COMP_TYPE_ATTRIBUTES
+#define TARGET_COMP_TYPE_ATTRIBUTES m68k_comp_type_attributes
+
+#undef TARGET_INSERT_ATTRIBUTES
+#define TARGET_INSERT_ATTRIBUTES m68k_insert_attributes
 
 #undef TARGET_PROMOTE_PROTOTYPES
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
@@ -360,6 +369,19 @@ static void m68k_asm_final_postscan_insn (FILE *, rtx_insn *insn, rtx [], int);
 #undef TARGET_ASM_FINAL_POSTSCAN_INSN
 #define TARGET_ASM_FINAL_POSTSCAN_INSN m68k_asm_final_postscan_insn
 
+/* The os9call and stackcall attributes exclude each other.  */
+static const struct attribute_spec::exclusions attr_os9call_exclusions[] =
+{
+  { "stackcall", true, true, true },
+  { NULL, false, false, false }
+};
+
+static const struct attribute_spec::exclusions attr_stackcall_exclusions[] =
+{
+  { "os9call", true, true, true },
+  { NULL, false, false, false }
+};
+
 static const struct attribute_spec m68k_attribute_table[] =
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
@@ -370,6 +392,13 @@ static const struct attribute_spec m68k_attribute_table[] =
     m68k_handle_fndecl_attribute, NULL },
   { "interrupt_thread", 0, 0, true,  false, false, false,
     m68k_handle_fndecl_attribute, NULL },
+  /* Calling conventions: os9call is the Microware OS-9 C convention
+     (first arguments in d0/d1), stackcall the normal stack convention.
+     Each overrides -mos9call or its absence for one function type.  */
+  { "os9call", 0, 0, false, true, true, true,
+    m68k_handle_callconv_attribute, attr_os9call_exclusions },
+  { "stackcall", 0, 0, false, true, true, true,
+    m68k_handle_callconv_attribute, attr_stackcall_exclusions },
   { NULL, 0, 0, false, false, false, false, NULL, NULL }
 };
 
@@ -693,6 +722,50 @@ m68k_option_override (void)
       opt_fstack_limit_register_no = -1;
     }
 
+  /* Options that don't work with the OS-9 calling convention.  */
+  if (TARGET_OS9CALL)
+    {
+      if (TARGET_SHORT)
+	error ("%<-mshort%> is not supported with %<-mos9call%>");
+      if (TARGET_RTD)
+	error ("%<-mrtd%> is not supported with %<-mos9call%>");
+      if (profile_flag)
+	error ("%<-pg%> is not supported with %<-mos9call%>");
+      if (flag_instrument_function_entry_exit)
+	error ("%<-finstrument-functions%> is not supported with "
+	       "%<-mos9call%>");
+      if (profile_arc_flag)
+	error ("%<-fprofile-arcs%> and %<-fprofile-generate%> are not "
+	       "supported with %<-mos9call%>");
+      if (flag_use_cxa_atexit)
+	error ("%<-fuse-cxa-atexit%> is not supported with %<-mos9call%>");
+      /* On CPUs without TRAPcc these were disabled above.  */
+      if (opt_fstack_limit_symbol_arg != NULL)
+	error ("%<-fstack-limit-symbol%> is not supported with "
+	       "%<-mos9call%>");
+      if (opt_fstack_limit_register_no == D0_REG
+	  || opt_fstack_limit_register_no == D0_REG + 1)
+	error ("%<-fstack-limit-register%> cannot use an argument register "
+	       "with %<-mos9call%>");
+
+      if (TARGET_68881)
+	warning (0, "%<-m68881%> code is emulated, and slow, on OS-9 "
+		 "systems without an FPU");
+      if (!TARGET_A6REL)
+	warning (0, "%<-mos9call%> without %<-ma6rel%>: Microware code "
+		 "expects a6 to point at its static storage");
+      if (TARGET_ALIGN_INT)
+	warning (0, "%<-malign-int%> changes the data layout from "
+		 "Microware C%'s");
+      /* flag_short_enums is resolved later by the front end.  */
+      if (global_options_set.x_flag_short_enums && flag_short_enums)
+	warning (0, "%<-fshort-enums%> changes the data layout from "
+		 "Microware C%'s");
+      if (flag_pack_struct)
+	warning (0, "%<-fpack-struct%> changes the data layout from "
+		 "Microware C%'s");
+    }
+
   SUBTARGET_OVERRIDE_OPTIONS;
 
   /* Setup scheduling options.  */
@@ -818,6 +891,191 @@ m68k_handle_fndecl_attribute (tree *node, tree name,
     }
 
   return NULL_TREE;
+}
+
+/* The Microware OS-9 C calling convention ("OS-9 convention"): the
+   first argument goes in d0 (d0:d1 if it's 8 bytes), the second in d1
+   if the first used d0 alone, and everything else on the stack.  It's
+   used for all functions under -mos9call, and for function types with
+   the os9call attribute without it.  */
+
+/* Return true if functions of type FNTYPE use the OS-9 convention.
+   Libcalls (no type) and member functions (METHOD_TYPE) always use
+   the stack convention.  */
+
+bool
+m68k_os9call_type_p (const_tree fntype)
+{
+  if (fntype == NULL_TREE || TREE_CODE (fntype) != FUNCTION_TYPE)
+    return false;
+  if (lookup_attribute ("stackcall", TYPE_ATTRIBUTES (fntype)))
+    return false;
+  if (lookup_attribute ("os9call", TYPE_ATTRIBUTES (fntype)))
+    return true;
+  return TARGET_OS9CALL;
+}
+
+/* Likewise for a function of type FNTYPE whose declaration is FNDECL,
+   if known.  Interrupt handlers keep their own conventions.  */
+
+static bool
+m68k_os9call_p (const_tree fntype, const_tree fndecl)
+{
+  if (fndecl != NULL_TREE
+      && TREE_CODE (fndecl) == FUNCTION_DECL
+      && (m68k_get_function_kind (CONST_CAST_TREE (fndecl))
+	  != m68k_fk_normal_function))
+    return false;
+  return m68k_os9call_type_p (fntype);
+}
+
+/* Implement INIT_CUMULATIVE_ARGS.  */
+
+void
+m68k_init_cumulative_args (CUMULATIVE_ARGS *cum, const_tree fntype,
+			   const_tree fndecl)
+{
+  cum->bytes = 0;
+  cum->os9call = m68k_os9call_p (fntype, fndecl);
+  cum->argno = 0;
+  cum->d1_free = 0;
+}
+
+/* Handle the os9call and stackcall attributes; arguments as in
+   struct attribute_spec.handler.  */
+
+static tree
+m68k_handle_callconv_attribute (tree *node, tree name, tree, int,
+				bool *no_add_attrs)
+{
+  bool os9call = is_attribute_p ("os9call", name);
+
+  if (TREE_CODE (*node) != FUNCTION_TYPE
+      && TREE_CODE (*node) != METHOD_TYPE
+      && TREE_CODE (*node) != FIELD_DECL
+      && TREE_CODE (*node) != TYPE_DECL)
+    {
+      warning (OPT_Wattributes, "%qE attribute only applies to functions",
+	       name);
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  /* Non-static member functions always use the stack convention.  */
+  if (TREE_CODE (*node) == METHOD_TYPE)
+    {
+      if (os9call)
+	warning (OPT_Wattributes, "%qE attribute ignored on non-static "
+		 "member functions", name);
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  if (lookup_attribute (os9call ? "stackcall" : "os9call",
+			TYPE_ATTRIBUTES (*node)))
+    {
+      error ("%<os9call%> and %<stackcall%> attributes are not compatible");
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  /* Drop the attribute that only restates the default, so that each
+     convention has a single type (and a single C++ mangling).  */
+  if (os9call == (TARGET_OS9CALL != 0))
+    *no_add_attrs = true;
+
+  return NULL_TREE;
+}
+
+/* Implement TARGET_COMP_TYPE_ATTRIBUTES: function types with different
+   calling conventions are incompatible.  */
+
+static int
+m68k_comp_type_attributes (const_tree type1, const_tree type2)
+{
+  if (TREE_CODE (type1) != FUNCTION_TYPE
+      || TREE_CODE (type2) != FUNCTION_TYPE)
+    return 1;
+  return m68k_os9call_type_p (type1) == m68k_os9call_type_p (type2);
+}
+
+/* Runtime functions that keep the stack convention under -mos9call:
+   those defined outside -mos9call code (libgcc, and newlib's assembly
+   memcpy and memset), and those that libgcc calls.  abort takes no
+   arguments and never returns, so it's listed for consistency only.  */
+
+static const char *const m68k_stackcall_names[] =
+{
+  "memcpy", "memset", "strlen", "malloc", "free", "abort", NULL
+};
+
+static const char *const m68k_stackcall_prefixes[] =
+{
+  "_Unwind_", "__atomic_", "__sync_", "__gxx_personality_",
+  "__gcc_personality_", NULL
+};
+
+/* Return true if DECL names one of the functions above.  GCC's own
+   built-in declarations are recognized by their library name.  */
+
+static bool
+m68k_stackcall_name_p (const_tree decl)
+{
+  const char *name;
+  int i;
+
+  if (TREE_CODE (decl) == FUNCTION_DECL && DECL_ASSEMBLER_NAME_SET_P (decl))
+    name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME_RAW (decl));
+  else if (DECL_NAME (decl) != NULL_TREE)
+    name = IDENTIFIER_POINTER (DECL_NAME (decl));
+  else
+    return false;
+
+  if (strncmp (name, "__builtin_", 10) == 0)
+    name += 10;
+  for (i = 0; m68k_stackcall_names[i] != NULL; i++)
+    if (strcmp (name, m68k_stackcall_names[i]) == 0)
+      return true;
+  for (i = 0; m68k_stackcall_prefixes[i] != NULL; i++)
+    if (strncmp (name, m68k_stackcall_prefixes[i],
+		 strlen (m68k_stackcall_prefixes[i])) == 0)
+      return true;
+  return false;
+}
+
+/* Implement TARGET_INSERT_ATTRIBUTES.  Under -mos9call, give every
+   declaration of the functions above (GCC's built-in declarations,
+   header declarations, K&R redeclarations, definitions, and typedefs
+   such as _Unwind_Personality_Fn) the stackcall attribute, unless it
+   has a calling-convention attribute already.  */
+
+static void
+m68k_insert_attributes (tree node, tree *attributes)
+{
+  tree type;
+
+  if (!TARGET_OS9CALL)
+    return;
+  if (TREE_CODE (node) != FUNCTION_DECL && TREE_CODE (node) != TYPE_DECL)
+    return;
+
+  type = TREE_TYPE (node);
+  if (type != NULL_TREE && TREE_CODE (node) == TYPE_DECL
+      && POINTER_TYPE_P (type))
+    type = TREE_TYPE (type);
+  if (type == NULL_TREE || TREE_CODE (type) != FUNCTION_TYPE)
+    return;
+
+  if (!m68k_stackcall_name_p (node))
+    return;
+  if (lookup_attribute ("os9call", *attributes)
+      || lookup_attribute ("stackcall", *attributes)
+      || lookup_attribute ("os9call", TYPE_ATTRIBUTES (type))
+      || lookup_attribute ("stackcall", TYPE_ATTRIBUTES (type)))
+    return;
+
+  *attributes = tree_cons (get_identifier ("stackcall"), NULL_TREE,
+			   *attributes);
 }
 
 static void
@@ -1455,7 +1713,8 @@ m68k_function_arg_advance (cumulative_args_t cum_v,
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 
-  *cum += (arg.promoted_size_in_bytes () + 3) & ~3;
+  cum->bytes += (arg.promoted_size_in_bytes () + 3) & ~3;
+  cum->argno++;
 }
 
 /* Convert X to a legitimate function call memory reference and return the
@@ -7066,6 +7325,13 @@ m68k_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 {
   rtx fnaddr = XEXP (DECL_RTL (fndecl), 0);
   rtx mem;
+
+  /* The trampoline loads the static chain into a1 before the nested
+     function can save it, so an OS-9 caller would lose its a1.  */
+  if (m68k_os9call_type_p (TREE_TYPE (fndecl)))
+    error_at (DECL_SOURCE_LOCATION (fndecl),
+	      "taking the address of nested function %qD needs a trampoline, "
+	      "which the OS-9 calling convention doesn%'t support", fndecl);
 
   gcc_assert (ADDRESS_REGNO_P (STATIC_CHAIN_REGNUM));
 

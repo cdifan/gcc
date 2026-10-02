@@ -5193,6 +5193,22 @@ that the specified function is an interrupt handler that is designed
 to run as a thread.  The compiler omits generate prologue/epilogue
 sequences and replaces the return instruction with a @code{sleep}
 instruction.  This attribute is available only on fido.
+
+@item os9call
+@itemx stackcall
+@cindex @code{os9call} function attribute, m68k
+@cindex @code{stackcall} function attribute, m68k
+These type attributes select the calling convention of a function type:
+@code{os9call} the Microware OS-9 C convention (@pxref{M680x0 Options,
+,@option{-mos9call}}), @code{stackcall} the normal convention with all
+arguments on the stack.  They override @option{-mos9call} or its absence
+for one function, and can be used in typedefs and function pointer types.
+Function types with different conventions are incompatible.  Under
+@option{-mos9call}, declarations of the runtime functions that keep the
+normal convention (@code{memcpy}, @code{memset}, @code{strlen},
+@code{malloc}, @code{free}, @code{abort} and the @code{_Unwind_},
+@code{__atomic_} and @code{__sync_} functions) get @code{stackcall}
+automatically.
 @end table
 
 @node MCORE Function Attributes

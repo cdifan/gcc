@@ -70,6 +70,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "rtl-iter.h"
 #include "toplev.h"
+#include "function-abi.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -204,6 +205,8 @@ static tree m68k_handle_callconv_attribute (tree *, tree, tree, int, bool *);
 static int m68k_comp_type_attributes (const_tree, const_tree);
 static void m68k_insert_attributes (tree, tree *);
 static rtx m68k_function_value_hook (const_tree, const_tree, bool);
+static const predefined_function_abi &m68k_fntype_abi (const_tree);
+static const predefined_function_abi &m68k_insn_callee_abi (const rtx_insn *);
 static fixed_size_mode m68k_get_raw_mode (int);
 static tree m68k_handle_remote_attribute (tree *, tree, tree, int, bool *);
 static void m68k_encode_section_info (tree, rtx, int);
@@ -307,6 +310,12 @@ static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
 
 #undef TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE m68k_function_value_hook
+
+#undef TARGET_FNTYPE_ABI
+#define TARGET_FNTYPE_ABI m68k_fntype_abi
+
+#undef TARGET_INSN_CALLEE_ABI
+#define TARGET_INSN_CALLEE_ABI m68k_insn_callee_abi
 
 #undef TARGET_ENCODE_SECTION_INFO
 #define TARGET_ENCODE_SECTION_INFO m68k_encode_section_info
@@ -999,6 +1008,69 @@ m68k_os9call_p (const_tree fntype, const_tree fndecl)
 	  != m68k_fk_normal_function))
     return false;
   return m68k_os9call_type_p (fntype);
+}
+
+/* The function ABIs (function-abi.h): GCC's own, and the OS-9
+   convention's, whose callees also preserve a0 and a1 (Microware's C
+   compilers and libraries, and m68k_save_reg), so callers can keep values
+   there across calls.  d1, also preserved unless it carries an argument
+   or the return value, and fp0/fp1 still count as clobbered.  */
+
+enum m68k_abi_id
+{
+  M68K_ABI_DEFAULT,
+  M68K_ABI_OS9CALL
+};
+
+static const predefined_function_abi &
+m68k_os9call_abi (void)
+{
+  predefined_function_abi &abi = function_abis[M68K_ABI_OS9CALL];
+  if (!abi.initialized_p ())
+    {
+      HARD_REG_SET clobbers = default_function_abi.full_reg_clobbers ();
+      CLEAR_HARD_REG_BIT (clobbers, A0_REG);
+      CLEAR_HARD_REG_BIT (clobbers, A1_REG);
+      abi.initialize (M68K_ABI_OS9CALL, clobbers);
+    }
+  return abi;
+}
+
+/* Implement TARGET_FNTYPE_ABI.  Only prototyped types: GCC's own
+   declarations of library functions for libcalls, which use the stack
+   convention, have the type int (), which -mos9call would otherwise make
+   an OS-9 convention type (GCC looks them up with -fipa-ra).  Calls to
+   unprototyped functions just don't keep values in a0/a1.  */
+
+static const predefined_function_abi &
+m68k_fntype_abi (const_tree fntype)
+{
+  if (m68k_os9call_type_p (fntype) && prototype_p (fntype))
+    return m68k_os9call_abi ();
+  return default_function_abi;
+}
+
+/* Implement TARGET_INSN_CALLEE_ABI: the callee's type, from the call's
+   MEM, which refers to the function declaration, or for an indirect call
+   to the function the pointer points to.  Libcalls have neither, and use
+   the stack convention.  */
+
+static const predefined_function_abi &
+m68k_insn_callee_abi (const rtx_insn *insn)
+{
+  rtx call = get_call_rtx_from (insn);
+  if (call && MEM_P (XEXP (call, 0)))
+    {
+      tree expr = MEM_EXPR (XEXP (call, 0));
+      if (expr != NULL_TREE && TREE_CODE (expr) == FUNCTION_DECL)
+	{
+	  if (m68k_os9call_p (TREE_TYPE (expr), expr))
+	    return m68k_fntype_abi (TREE_TYPE (expr));
+	}
+      else if (expr != NULL_TREE && FUNC_OR_METHOD_TYPE_P (TREE_TYPE (expr)))
+	return m68k_fntype_abi (TREE_TYPE (expr));
+    }
+  return default_function_abi;
 }
 
 /* Implement TARGET_FUNCTION_VALUE.  FN_DECL_OR_TYPE is the function's

@@ -119,7 +119,35 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #else /* __PIC__ */
 
-# if defined (__uClinux__)
+# if defined (__A6REL__)
+
+	/* Versions for -mpcrel -ma6rel (OS-9): code is PC-relative, and
+	   data is addressed relative to a6, which points 0x8000 into the
+	   data area; there is no GOT.  The routines below use a6 as their
+	   frame pointer, so here they use a5 instead (written a6, which is
+	   otherwise unused), and the data pointer is written fp, the other
+	   name of the real a6.  */
+
+#undef a6
+#define a6 a5
+
+	.macro PICLEA sym, reg
+	lea	\sym(fp), \reg
+	.endm
+
+	.macro PICPEA sym, areg
+	pea	\sym(fp)
+	.endm
+
+	.macro PICCALL addr
+	jbsr	\addr
+	.endm
+
+	.macro PICJUMP addr
+	bra	\addr
+	.endm
+
+# elif defined (__uClinux__)
 
 	/* Versions for uClinux */
 

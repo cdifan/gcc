@@ -489,8 +489,9 @@ extern enum reg_class regno_reg_class[];
    XXX This macro is m68k specific and used only for m68kemb.h.  */
 #define NEEDS_UNTYPED_CALL 0
 
-/* On the m68k, all arguments are usually pushed on the stack.  */
-#define FUNCTION_ARG_REGNO_P(N) 0
+/* On the m68k, all arguments are usually pushed on the stack.  The OS-9
+   calling convention passes the first arguments in d0 and d1.  */
+#define FUNCTION_ARG_REGNO_P(N) m68k_function_arg_regno_p (N)
 
 /* On the m68k, this records the number of bytes of arguments scanned
    so far.  For the OS-9 calling convention (-mos9call and the os9call

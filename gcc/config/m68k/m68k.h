@@ -62,6 +62,8 @@ along with GCC; see the file COPYING3.  If not see
     {									\
       builtin_define ("__m68k__");					\
       builtin_define_std ("mc68000");					\
+      if (TARGET_OS9CALL)						\
+	builtin_define ("__OS9CALL__");					\
       /* The other mc680x0 macros have traditionally been derived	\
 	 from the tuning setting.  For example, -m68020-60 defines	\
 	 m68060, even though it generates pure 68020 code.  */		\
@@ -490,13 +492,23 @@ extern enum reg_class regno_reg_class[];
 /* On the m68k, all arguments are usually pushed on the stack.  */
 #define FUNCTION_ARG_REGNO_P(N) 0
 
-/* On the m68k, this is a single integer, which is a number of bytes
-   of arguments scanned so far.  */
-#define CUMULATIVE_ARGS int
+/* On the m68k, this records the number of bytes of arguments scanned
+   so far.  For the OS-9 calling convention (-mos9call and the os9call
+   attribute), it also records the argument position and whether the
+   second argument may still go in d1.  */
+struct m68k_cumulative_args
+{
+  int bytes;		/* Bytes of stack arguments so far.  */
+  int os9call;		/* Nonzero for the OS-9 calling convention.  */
+  int argno;		/* Number of arguments scanned so far.  */
+  int d1_free;		/* Nonzero if the next argument may go in d1.  */
+};
+#define CUMULATIVE_ARGS struct m68k_cumulative_args
 
-/* On the m68k, the offset starts at 0.  */
+/* FNTYPE is the function type, or null for a libcall; INDIRECT is the
+   function declaration, if known.  */
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
- ((CUM) = 0)
+  m68k_init_cumulative_args (&(CUM), (FNTYPE), (INDIRECT))
 
 #define FUNCTION_PROFILER(FILE, LABELNO)  \
   asm_fprintf (FILE, "\tlea %LLP%d,%Ra0\n\tjsr mcount\n", (LABELNO))

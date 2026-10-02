@@ -1199,7 +1199,7 @@ Objective-C and Objective-C++ Dialects}.
 -mhard-float  -m68881  -msoft-float  -mpcrel
 -malign-int  -mstrict-align  -msep-data
 -mshared-library-id=@var{n}  -mid-shared-library
--mxgot  -mxtls  -mlong-jump-table-offsets}
+-mxgot  -mxtls  -mlong-jump-table-offsets  -mos9call}
 
 @emph{MCore Options} (@ref{MCore Options})
 @gccoptlist{-mhardlit  -mdiv  -mrelax-immediates
@@ -28535,6 +28535,24 @@ may be inadequate for some programs.
 @item -mlong-jump-table-offsets
 Use 32-bit offsets in @code{switch} tables.  The default is to use
 16-bit offsets.
+
+@item -mos9call
+@itemx -mno-os9call
+@opindex mos9call
+@opindex mno-os9call
+Use the calling convention of the Microware OS-9 C compiler (version 3.2)
+for every function of plain function type: the first argument goes in
+@code{d0} if it is a scalar of up to 4 bytes, or in @code{d0}:@code{d1} if
+it is a scalar of 8 bytes; the second argument goes in @code{d1} if it is a
+scalar of up to 4 bytes and the first argument used @code{d0} alone; all
+other arguments, including all aggregates, go on the stack.  Arguments of
+variadic functions are placed the same way.  Non-static member functions,
+interrupt handlers and the compiler's own library calls keep the normal
+convention.  The @code{os9call} and @code{stackcall} function attributes
+select either convention for individual function types
+(@pxref{m68k Function Attributes}).  The predefined macro
+@code{__OS9CALL__} is defined when this option is in effect.
+@samp{libgcc} must be built without this option.
 
 @end table
 

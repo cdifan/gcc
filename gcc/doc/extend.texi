@@ -7499,6 +7499,7 @@ generates the much slower @code{seth/add3/jl} instruction sequence).
 
 @node m68k Attributes
 @anchor{m68k Function Attributes}
+@anchor{m68k Variable Attributes}
 @subsubsection m68k Attributes
 
 These attributes are supported by the m68k back end:
@@ -7544,6 +7545,18 @@ such as @code{__mulsc3}, and the @code{_Unwind_}, @code{__atomic_},
 functions) get @code{stackcall} automatically, matched by their name (not
 by an @code{asm} label).  Using both attributes on one type is an error.
 These attributes are only available on OS-9 targets.
+
+@atindex @code{remote}, m68k
+@item remote
+This attribute applies to variables.
+
+Use it, with @option{-ma6rel}, for variables with static
+storage that don't fit in the 64 KB of data that @code{a6}-relative
+addressing reaches, like the @code{remote} storage class of Microware's
+OS-9 C compiler.  Such variables are placed in the sections
+@code{.remote.data} and @code{.remote.bss}, which the linker script puts
+after the other data, and are addressed as @code{a6} plus a 32-bit
+offset.  This attribute is only available on OS-9 targets.
 @end table
 
 @node MicroBlaze Attributes

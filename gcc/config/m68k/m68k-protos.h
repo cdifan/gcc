@@ -44,6 +44,8 @@ extern const char *output_call (rtx);
 extern const char *output_sibcall (rtx);
 extern void m68k_init_cc ();
 extern const char *m68k_output_os9_stkcheck (rtx, bool);
+extern bool m68k_remote_reference_p (rtx);
+extern rtx m68k_legitimize_remote_address (rtx);
 extern void output_dbcc_and_branch (rtx *, rtx_code);
 extern rtx_code m68k_output_compare_di (rtx, rtx, rtx, rtx, rtx_insn *, rtx_code);
 extern rtx_code m68k_output_compare_si (rtx, rtx, rtx_code);

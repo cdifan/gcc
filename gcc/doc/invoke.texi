@@ -23909,7 +23909,12 @@ for every function of plain function type: the first argument goes in
 it is a scalar of 8 bytes; the second argument goes in @code{d1} if it is a
 scalar of up to 4 bytes and the first argument used @code{d0} alone; all
 other arguments, including all aggregates, go on the stack.  Arguments of
-variadic functions are placed the same way.  Non-static member functions,
+variadic functions are placed the same way.  Values are returned in
+@code{d0}, or @code{d0}:@code{d1} for 8-byte scalars, also with
+@option{-m68881}; aggregates, complex values and @code{long double} are
+returned in memory at the address the caller passes in @code{a0}.  A
+function preserves all registers except @code{d0} and those carrying an
+argument or the return value.  Non-static member functions,
 interrupt handlers and the compiler's own library calls keep the normal
 convention.  The @code{os9call} and @code{stackcall} function attributes
 select either convention for individual function types

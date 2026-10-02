@@ -943,6 +943,24 @@ m68k_os9call_p (const_tree fntype, const_tree fndecl)
   return m68k_os9call_type_p (fntype);
 }
 
+/* FUNCTION_VALUE for the OS-9 targets.  FUNC is the function's
+   declaration or type, if known.  The OS-9 convention returns float and
+   double values in d0 and d0:d1, also with -m68881; otherwise values
+   are returned as libcall values are (m68kemb.h).  */
+
+rtx
+m68k_os9_function_value (const_tree valtype, const_tree func)
+{
+  machine_mode mode = TYPE_MODE (valtype);
+
+  if (func != NULL_TREE
+      && (DECL_P (func)
+	  ? m68k_os9call_p (TREE_TYPE (func), func)
+	  : m68k_os9call_type_p (func)))
+    return gen_rtx_REG (mode, D0_REG);
+  return m68k_libcall_value (mode);
+}
+
 /* Implement INIT_CUMULATIVE_ARGS.  */
 
 void
@@ -6368,9 +6386,18 @@ m68k_function_value (const_tree valtype, const_tree func ATTRIBUTE_UNUSED)
 /* Worker function for TARGET_RETURN_IN_MEMORY.  */
 #if M68K_HONOR_TARGET_STRICT_ALIGNMENT
 static bool
-m68k_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
+m68k_return_in_memory (const_tree type, const_tree fntype)
 {
   machine_mode mode = TYPE_MODE (type);
+
+  /* The OS-9 convention returns all aggregates, complex values and long
+     double in memory, at the address the caller passes in a0, as
+     Microware Ultra C does.  */
+  if (m68k_os9call_type_p (fntype)
+      && (AGGREGATE_TYPE_P (type)
+	  || TREE_CODE (type) == COMPLEX_TYPE
+	  || mode == XFmode))
+    return true;
 
   if (mode == BLKmode)
     return true;
@@ -7579,13 +7606,22 @@ m68k_init_sync_libfuncs (void)
 }
 
 /* Implements EPILOGUE_USES.  All registers are live on exit from an
-   interrupt routine.  */
+   interrupt routine.  Under the OS-9 calling convention, the epilogue
+   also restores call-clobbered registers other than d0 (m68k_save_reg);
+   they must count as live on exit, or the restores would be deleted as
+   dead.  */
 bool
-m68k_epilogue_uses (int regno ATTRIBUTE_UNUSED)
+m68k_epilogue_uses (int regno)
 {
-  return (reload_completed
-	  && (m68k_get_function_kind (current_function_decl)
-	      == m68k_fk_interrupt_handler));
+  if (!reload_completed)
+    return false;
+  if (m68k_get_function_kind (current_function_decl)
+      == m68k_fk_interrupt_handler)
+    return true;
+  return (regno != D0_REG
+	  && !fixed_regs[regno]
+	  && call_used_or_fixed_reg_p (regno)
+	  && m68k_os9call_current_p ());
 }
 
 

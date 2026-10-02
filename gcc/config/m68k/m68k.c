@@ -746,6 +746,11 @@ m68k_option_override (void)
   /* Options that don't work with the OS-9 calling convention.  */
   if (TARGET_OS9CALL && !M68K_OS9_TARGET)
     error ("%<-mos9call%> is only supported for OS-9 targets");
+  if (TARGET_OS9STKCHK && !M68K_OS9_TARGET)
+    error ("%<-mos9stkchk%> is only supported for OS-9 targets");
+  else if (TARGET_OS9STKCHK && !TARGET_A6REL)
+    error ("%<-mos9stkchk%> requires %<-ma6rel%>: %<_stkcheck%> and its "
+	   "limits are in the a6 data area");
   if (TARGET_OS9CALL)
     {
       if (TARGET_SHORT)
@@ -980,6 +985,30 @@ m68k_function_value_hook (const_tree valtype, const_tree fn_decl_or_type,
   return FUNCTION_VALUE (valtype, fn_decl_or_type);
 }
 
+/* Output the -mos9stkchk stack check for a function that needs N bytes
+   of stack (see m68k_expand_prologue): Microware C 3.2's sequence,
+   move.l #-N,d0 and a call to _stkcheck, saving d0 around it if
+   SAVE_D0.  */
+
+const char *
+m68k_output_os9_stkcheck (rtx n, bool save_d0)
+{
+  rtx ops[2];
+
+  ops[0] = gen_rtx_REG (SImode, D0_REG);
+  ops[1] = GEN_INT (-INTVAL (n));
+  if (save_d0)
+    output_asm_insn ("move%.l %0,%-", ops);
+  if (INTVAL (n) <= 128)
+    output_asm_insn ("moveq %1,%0", ops);
+  else
+    output_asm_insn ("move%.l %1,%0", ops);
+  output_asm_insn (TARGET_PCREL ? "bsr%.w _stkcheck" : "jsr _stkcheck", ops);
+  if (save_d0)
+    output_asm_insn ("move%.l %+,%0", ops);
+  return "";
+}
+
 /* Implement TARGET_GET_RAW_ARG_MODE and TARGET_GET_RAW_RESULT_MODE,
    which only __builtin_apply_args, __builtin_apply and __builtin_return
    use.  They save and restore registers without knowing the calling
@@ -1010,6 +1039,7 @@ m68k_init_cumulative_args (CUMULATIVE_ARGS *cum, const_tree fntype,
   cum->os9call = m68k_os9call_p (fntype, fndecl);
   cum->argno = 0;
   cum->d1_free = 0;
+  cum->d0_used = 0;
   cum->d1_used = 0;
   cum->interrupt = (fndecl != NULL_TREE
 		    && TREE_CODE (fndecl) == FUNCTION_DECL
@@ -1468,6 +1498,24 @@ m68k_expand_prologue (void)
   if (flag_stack_usage_info)
     current_function_static_stack_size
       = current_frame.size + current_frame.offset;
+
+  /* -mos9stkchk: check the stack as Microware C 3.2 does, before the
+     frame is allocated.  Microware C 3.2 checks after link and the
+     register saves, with a margin of 64 bytes (68 if the function makes
+     calls); count those too, so the same margin is left.  Interrupt
+     handlers don't run on the process stack.  */
+  if (TARGET_OS9STKCHK
+      && (m68k_get_function_kind (current_function_decl)
+	  == m68k_fk_normal_function))
+    {
+      HOST_WIDE_INT n = (current_frame.size + current_frame.offset
+			 + (frame_pointer_needed ? 4 : 0)
+			 + (crtl->is_leaf ? 64 : 68));
+      if (m68k_os9call_current_p () && crtl->args.info.d0_used)
+	emit_insn (gen_os9_stkcheck_saved (GEN_INT (n)));
+      else
+	emit_insn (gen_os9_stkcheck (GEN_INT (n)));
+    }
 
   /* If the stack limit is a symbol, we can check it here,
      before actually allocating the space.  */
@@ -1983,6 +2031,8 @@ m68k_function_arg_advance (cumulative_args_t cum_v,
     {
       cum->d1_free = (cum->argno == 0 && REGNO (reg) == D0_REG
 		      && GET_MODE_SIZE (arg.mode) <= 4);
+      if (REGNO (reg) == D0_REG)
+	cum->d0_used = 1;
       if (END_REGNO (reg) > D0_REG + 1)
 	cum->d1_used = 1;
     }

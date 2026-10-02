@@ -211,6 +211,10 @@ mos9call
 Target Mask(OS9CALL)
 Use the Microware OS-9 C calling convention (first arguments in d0/d1).
 
+mos9stkchk
+Target Mask(OS9STKCHK)
+Check the stack in every function by calling Microware C's _stkcheck, as Microware C 3.2 does.
+
 mbuiltin=
 Target RejectNegative Joined Enum(m68k_builtin_call) Var(m68k_builtin_conv) Init(M68K_BUILTIN_STACKCALL)
 -mbuiltin=stackcall|os9call	Under -mos9call, the calling convention of memcpy, memset, strlen, malloc, free and abort: stackcall for newlib (the default), os9call for Microware's clib.

@@ -997,7 +997,7 @@ Objective-C and Objective-C++ Dialects}.
 -malign-int  -mstrict-align  -msep-data  -mno-sep-data @gol
 -mshared-library-id=n  -mid-shared-library  -mno-id-shared-library @gol
 -mxgot  -mno-xgot  -mlong-jump-table-offsets  -mos9call  -mno-os9call @gol
--mbuiltin=@var{convention}}
+-mbuiltin=@var{convention}  -mos9stkchk}
 
 @emph{MCore Options}
 @gccoptlist{-mhardlit  -mno-hardlit  -mdiv  -mno-div  -mrelax-immediates @gol
@@ -23944,6 +23944,19 @@ Microware's @file{clib.l}, where these functions use the OS-9 convention.
 With @samp{os9call}, the parts of @samp{libgcc} that call these functions
 (the DWARF unwinder and emulated TLS) can't be used.  libgcc's own
 helpers keep the stack convention in either case.
+
+@item -mos9stkchk
+@itemx -mno-os9stkchk
+@opindex mos9stkchk
+Check the stack at the start of every function, as Microware's OS-9 C
+compiler (version 3.2) does by default: load the negated stack size the
+function needs into @code{d0} and call @code{_stkcheck}, which comes
+with Microware's startup code (@file{cstart.r}) and keeps the stack's
+lowest address.  The size counts the frame, the register save area and
+a margin of 64 bytes (68 if the function makes calls), like Microware's.
+@code{d0} is saved around the check when it holds an argument.
+Interrupt handlers are not checked.  This option requires
+@option{-ma6rel} and is only available on OS-9 targets.
 
 @end table
 

@@ -187,6 +187,8 @@ static void m68k_function_arg_advance (cumulative_args_t,
 static rtx m68k_function_arg (cumulative_args_t, const function_arg_info &);
 static bool m68k_cannot_force_const_mem (machine_mode mode, rtx x);
 static bool m68k_output_addr_const_extra (FILE *, rtx);
+static section *m68k_select_section (tree, int, unsigned HOST_WIDE_INT);
+static void m68k_unique_section (tree, int);
 static void m68k_init_sync_libfuncs (void) ATTRIBUTE_UNUSED;
 static enum flt_eval_method
 m68k_excess_precision (enum excess_precision_type);
@@ -332,6 +334,12 @@ static void m68k_asm_final_postscan_insn (FILE *, rtx_insn *insn, rtx [], int);
 
 #undef TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P m68k_legitimate_constant_p
+
+#undef TARGET_ASM_SELECT_SECTION
+#define TARGET_ASM_SELECT_SECTION m68k_select_section
+
+#undef TARGET_ASM_UNIQUE_SECTION
+#define TARGET_ASM_UNIQUE_SECTION m68k_unique_section
 
 #undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
 #define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA m68k_output_addr_const_extra
@@ -5187,6 +5195,80 @@ m68k_delegitimize_address (rtx orig_x)
 }
   
 
+/* Return true if an object of TYPE holds addresses (pointers), which
+   need relocating when the program is loaded.  Incomplete types are
+   assumed not to.  */
+
+static bool
+m68k_type_has_pointers_p (const_tree type)
+{
+  switch (TREE_CODE (type))
+    {
+    case POINTER_TYPE:
+    case REFERENCE_TYPE:
+      return true;
+    case ARRAY_TYPE:
+      return m68k_type_has_pointers_p (TREE_TYPE (type));
+    case RECORD_TYPE:
+    case UNION_TYPE:
+    case QUAL_UNION_TYPE:
+      for (tree f = TYPE_FIELDS (type); f; f = DECL_CHAIN (f))
+	if (TREE_CODE (f) == FIELD_DECL
+	    && m68k_type_has_pointers_p (TREE_TYPE (f)))
+	  return true;
+      return false;
+    default:
+      return false;
+    }
+}
+
+/* Return true if DECL is a read-only variable that holds addresses.  With
+   -ma6rel, such variables are data, not code: OS-9 only relocates
+   addresses in the initialized data when it loads a program.  Other
+   translation units only see the type, so the type decides, also when the
+   initializer happens to hold no addresses (see m68k_select_section).  */
+
+static bool
+m68k_readonly_with_pointers_p (const_tree decl)
+{
+  return (TREE_CODE (decl) == VAR_DECL && TREE_READONLY (decl)
+	  && m68k_type_has_pointers_p (TREE_TYPE (decl)));
+}
+
+/* With -ma6rel, return true if DECL is a variable in the data area,
+   addressed relative to a6.  Other read-only variables are in the code
+   area, addressed PC-relative.  */
+
+static bool
+m68k_a6rel_var_p (const_tree decl)
+{
+  return (TREE_CODE (decl) == VAR_DECL
+	  && (!TREE_READONLY (decl) || m68k_readonly_with_pointers_p (decl)));
+}
+
+/* Implement TARGET_ASM_SELECT_SECTION.  With -ma6rel, read-only variables
+   that hold addresses go in a writable data section, as if they needed
+   relocations (.data.rel.ro), which a linker script places with the other
+   data: see m68k_readonly_with_pointers_p.  */
+
+static section *
+m68k_select_section (tree decl, int reloc, unsigned HOST_WIDE_INT align)
+{
+  if (TARGET_A6REL && m68k_readonly_with_pointers_p (decl))
+    reloc |= 3;
+  return default_elf_select_section (decl, reloc, align);
+}
+
+/* Implement TARGET_ASM_UNIQUE_SECTION (-fdata-sections), likewise.  */
+
+static void
+m68k_unique_section (tree decl, int reloc)
+{
+  if (TARGET_A6REL && m68k_readonly_with_pointers_p (decl))
+    reloc |= 3;
+  default_unique_section (decl, reloc);
+}
+
 static tree
 get_symbol_decl (rtx addr)
 {
@@ -5264,7 +5346,7 @@ print_operand_address (FILE *file, rtx addr)
 	  tree decl = TARGET_A6REL ? get_symbol_decl (addr) : NULL;
 
 	  /* how distinct rodata or data/bss? DECL_IN_CONSTANT_POOL seems bad if decl is array of something. */
-	  if (decl && TREE_CODE (decl) == VAR_DECL && !TREE_READONLY (decl))
+	  if (decl && m68k_a6rel_var_p (decl))
 	  {
 	    /* symbol(%a6) */
 	    output_addr_const (file, addr);

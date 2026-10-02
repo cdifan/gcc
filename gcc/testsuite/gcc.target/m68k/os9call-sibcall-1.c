@@ -10,4 +10,6 @@ int __attribute__ ((os9call)) from_os9 (int a) { return plainf (a + 1); }
 int to_os9 (int a) { return mwf (a + 1); }
 int plain_to_plain (int a) { return plainf (a + 1); }
 
-/* { dg-final { scan-assembler-times "jmp \\(%a\[01\]\\)" 1 } } */
+/* { dg-final { scan-assembler-not "from_os9:\n(\t\[^\n\]*\n)*\tjmp" } } */
+/* { dg-final { scan-assembler-not "to_os9:\n(\t\[^\n\]*\n)*\tjmp" } } */
+/* { dg-final { scan-assembler "plain_to_plain:\n(\t\[^\n\]*\n)*\tjmp \\(%a\[01\]\\)" } } */

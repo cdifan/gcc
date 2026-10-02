@@ -118,7 +118,6 @@ extern bool m68k_function_arg_regno_p (unsigned int);
 
 #ifdef TREE_CODE
 extern bool m68k_os9call_type_p (const_tree);
-extern rtx m68k_os9_function_value (const_tree, const_tree);
 extern void m68k_init_cumulative_args (struct m68k_cumulative_args *,
 				       const_tree, const_tree);
 #endif

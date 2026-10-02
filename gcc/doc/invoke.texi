@@ -23922,6 +23922,17 @@ select either convention for individual function types
 @code{__OS9CALL__} is defined when this option is in effect.
 @samp{libgcc} must be built without this option.
 
+Some features are rejected with @option{-mos9call}: defining variadic
+functions with the OS-9 convention, passing a structure smaller than 4
+bytes by value between conventions, taking the address of a nested
+function (which needs a trampoline), @code{__builtin_apply_args},
+@code{__builtin_apply} and @code{__builtin_return}, and the options
+@option{-mshort}, @option{-mrtd}, @option{-pg},
+@option{-finstrument-functions}, @option{-fprofile-arcs},
+@option{-fprofile-generate}, @option{-fuse-cxa-atexit} and
+@option{-fstack-limit-symbol} or @option{-fstack-limit-register} with
+@code{d0} or @code{d1}.  This option is only available on OS-9 targets.
+
 @end table
 
 @node MCore Options

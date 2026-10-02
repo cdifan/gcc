@@ -199,6 +199,8 @@ static void m68k_asm_final_postscan_insn (FILE *, rtx_insn *insn, rtx [], int);
 static tree m68k_handle_callconv_attribute (tree *, tree, tree, int, bool *);
 static int m68k_comp_type_attributes (const_tree, const_tree);
 static void m68k_insert_attributes (tree, tree *);
+static rtx m68k_function_value_hook (const_tree, const_tree, bool);
+static fixed_size_mode m68k_get_raw_mode (int);
 static pad_direction m68k_function_arg_padding (machine_mode, const_tree);
 static void m68k_setup_incoming_varargs (cumulative_args_t,
 					 const function_arg_info &, int *,
@@ -290,6 +292,15 @@ static void m68k_setup_incoming_varargs (cumulative_args_t,
 
 #undef TARGET_INSERT_ATTRIBUTES
 #define TARGET_INSERT_ATTRIBUTES m68k_insert_attributes
+
+#undef TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE m68k_function_value_hook
+
+#undef TARGET_GET_RAW_ARG_MODE
+#define TARGET_GET_RAW_ARG_MODE m68k_get_raw_mode
+
+#undef TARGET_GET_RAW_RESULT_MODE
+#define TARGET_GET_RAW_RESULT_MODE m68k_get_raw_mode
 
 #undef TARGET_PROMOTE_PROTOTYPES
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
@@ -733,6 +744,8 @@ m68k_option_override (void)
     }
 
   /* Options that don't work with the OS-9 calling convention.  */
+  if (TARGET_OS9CALL && !M68K_OS9_TARGET)
+    error ("%<-mos9call%> is only supported for OS-9 targets");
   if (TARGET_OS9CALL)
     {
       if (TARGET_SHORT)
@@ -903,6 +916,10 @@ m68k_handle_fndecl_attribute (tree *node, tree name,
   return NULL_TREE;
 }
 
+#ifndef M68K_OS9_TARGET
+#define M68K_OS9_TARGET 0
+#endif
+
 /* The Microware OS-9 C calling convention ("OS-9 convention"): the
    first argument goes in d0 (d0:d1 if it's 8 bytes), the second in d1
    if the first used d0 alone, and everything else on the stack.  It's
@@ -943,22 +960,44 @@ m68k_os9call_p (const_tree fntype, const_tree fndecl)
   return m68k_os9call_type_p (fntype);
 }
 
-/* FUNCTION_VALUE for the OS-9 targets.  FUNC is the function's
-   declaration or type, if known.  The OS-9 convention returns float and
-   double values in d0 and d0:d1, also with -m68881; otherwise values
-   are returned as libcall values are (m68kemb.h).  */
+/* Implement TARGET_FUNCTION_VALUE.  FN_DECL_OR_TYPE is the function's
+   declaration, or its type for an indirect call.  The OS-9 convention
+   returns all values in d0 (d0:d1 for 8 bytes), float and double too,
+   also with -m68881.  Otherwise use FUNCTION_VALUE, which only gets the
+   declaration, as the default hook does.  */
 
-rtx
-m68k_os9_function_value (const_tree valtype, const_tree func)
+static rtx
+m68k_function_value_hook (const_tree valtype, const_tree fn_decl_or_type,
+			  bool outgoing ATTRIBUTE_UNUSED)
 {
-  machine_mode mode = TYPE_MODE (valtype);
+  if (fn_decl_or_type != NULL_TREE
+      && (DECL_P (fn_decl_or_type)
+	  ? m68k_os9call_p (TREE_TYPE (fn_decl_or_type), fn_decl_or_type)
+	  : m68k_os9call_type_p (fn_decl_or_type)))
+    return gen_rtx_REG (TYPE_MODE (valtype), D0_REG);
+  if (fn_decl_or_type != NULL_TREE && !DECL_P (fn_decl_or_type))
+    fn_decl_or_type = NULL_TREE;
+  return FUNCTION_VALUE (valtype, fn_decl_or_type);
+}
 
-  if (func != NULL_TREE
-      && (DECL_P (func)
-	  ? m68k_os9call_p (TREE_TYPE (func), func)
-	  : m68k_os9call_type_p (func)))
-    return gen_rtx_REG (mode, D0_REG);
-  return m68k_libcall_value (mode);
+/* Implement TARGET_GET_RAW_ARG_MODE and TARGET_GET_RAW_RESULT_MODE,
+   which only __builtin_apply_args, __builtin_apply and __builtin_return
+   use.  They save and restore registers without knowing the calling
+   convention, so they're rejected under -mos9call (once per file: GCC
+   computes the register set once).  */
+
+static fixed_size_mode
+m68k_get_raw_mode (int regno)
+{
+  static bool reported;
+
+  if (TARGET_OS9CALL && !reported)
+    {
+      reported = true;
+      error ("%<__builtin_apply_args%>, %<__builtin_apply%> and "
+	     "%<__builtin_return%> are not supported with %<-mos9call%>");
+    }
+  return default_get_reg_raw_mode (regno);
 }
 
 /* Implement INIT_CUMULATIVE_ARGS.  */
@@ -972,6 +1011,10 @@ m68k_init_cumulative_args (CUMULATIVE_ARGS *cum, const_tree fntype,
   cum->argno = 0;
   cum->d1_free = 0;
   cum->d1_used = 0;
+  cum->interrupt = (fndecl != NULL_TREE
+		    && TREE_CODE (fndecl) == FUNCTION_DECL
+		    && (m68k_get_function_kind (CONST_CAST_TREE (fndecl))
+			!= m68k_fk_normal_function));
 }
 
 /* Handle the os9call and stackcall attributes; arguments as in
@@ -983,12 +1026,11 @@ m68k_handle_callconv_attribute (tree *node, tree name, tree, int,
 {
   bool os9call = is_attribute_p ("os9call", name);
 
-  if (TREE_CODE (*node) != FUNCTION_TYPE
-      && TREE_CODE (*node) != METHOD_TYPE
-      && TREE_CODE (*node) != FIELD_DECL
-      && TREE_CODE (*node) != TYPE_DECL)
+  /* GCC only passes function and method types here (the attribute
+     requires a function type).  */
+  if (!M68K_OS9_TARGET)
     {
-      warning (OPT_Wattributes, "%qE attribute only applies to functions",
+      warning (OPT_Wattributes, "%qE attribute ignored on this target",
 	       name);
       *no_add_attrs = true;
       return NULL_TREE;
@@ -1041,7 +1083,11 @@ m68k_comp_type_attributes (const_tree type1, const_tree type2)
 
 static const char *const m68k_stackcall_names[] =
 {
-  "memcpy", "memset", "strlen", "malloc", "free", "abort", NULL
+  "memcpy", "memset", "strlen", "malloc", "free", "abort",
+  /* libgcc's complex multiply and divide, called through built-in
+     declarations.  */
+  "__mulsc3", "__muldc3", "__mulxc3", "__divsc3", "__divdc3", "__divxc3",
+  NULL
 };
 
 static const char *const m68k_stackcall_prefixes[] =
@@ -1088,6 +1134,20 @@ static void
 m68k_insert_attributes (tree node, tree *attributes)
 {
   tree type;
+
+  /* os9call and stackcall in the same attribute list conflict.  (The
+     attribute handlers can't tell: the one that restates the default
+     is dropped before the other one is applied.)  Keep os9call.  */
+  if (lookup_attribute ("os9call", *attributes)
+      && lookup_attribute ("stackcall", *attributes))
+    {
+      tree a, list = NULL_TREE;
+      error ("%<os9call%> and %<stackcall%> attributes are not compatible");
+      for (a = *attributes; a; a = TREE_CHAIN (a))
+	if (!is_attribute_p ("stackcall", get_attribute_name (a)))
+	  list = tree_cons (TREE_PURPOSE (a), TREE_VALUE (a), list);
+      *attributes = nreverse (list);
+    }
 
   if (!TARGET_OS9CALL)
     return;
@@ -1225,7 +1285,8 @@ m68k_os9call_d1_carries_value (void)
       || VOID_TYPE_P (TREE_TYPE (result))
       || aggregate_value_p (result, current_function_decl))
     return false;
-  value = FUNCTION_VALUE (TREE_TYPE (result), current_function_decl);
+  value = m68k_function_value_hook (TREE_TYPE (result),
+				    current_function_decl, true);
   return (REG_P (value)
 	  && REGNO (value) <= D0_REG + 1
 	  && END_REGNO (value) > D0_REG + 1);
@@ -1562,7 +1623,7 @@ void
 m68k_expand_epilogue (bool sibcall_p)
 {
   HOST_WIDE_INT fsize, fsize_with_regs;
-  bool big, restore_from_sp;
+  bool big, restore_from_sp, a1_restored;
 
   m68k_compute_frame_layout ();
 
@@ -1617,15 +1678,26 @@ m68k_expand_epilogue (bool sibcall_p)
 	}
     }
 
-  if (current_frame.reg_no < MIN_MOVEM_REGS
-      && !(big && (current_frame.reg_mask & (1 << A1_REG))))
+  /* With a big frame, a1 is the index register.  In an OS-9 convention
+     function, which always restores a1 then, restore the FPU registers
+     first, and a1 last among the integer registers.  (Interrupt handlers
+     have the same problem, but are left unchanged.)  */
+  a1_restored = (big && (current_frame.reg_mask & (1 << A1_REG))
+		 && m68k_os9call_current_p ());
+  if (a1_restored && current_frame.fpu_no > 0)
+    m68k_emit_movem (gen_rtx_PLUS (Pmode,
+				   gen_rtx_REG (Pmode, A1_REG),
+				   frame_pointer_rtx),
+		     -(current_frame.foffset + fsize),
+		     current_frame.fpu_no, FP0_REG,
+		     current_frame.fpu_mask, false, false);
+
+  if (current_frame.reg_no < MIN_MOVEM_REGS)
     {
-      /* Restore each register separately in the same order moveml does.
-	 When a1 is the index register and is restored too (always under
-	 the OS-9 convention), movem is used instead, since it computes
-	 the address before loading a1.  */
+      /* Restore each register separately in the same order moveml does,
+	 except a1 when it's the index register.  */
       int i;
-      HOST_WIDE_INT offset;
+      HOST_WIDE_INT offset, a1_offset = 0;
 
       offset = current_frame.offset + fsize;
       for (i = 0; i < 16; i++)
@@ -1633,6 +1705,12 @@ m68k_expand_epilogue (bool sibcall_p)
           {
 	    rtx addr;
 
+	    if (a1_restored && D0_REG + i == A1_REG)
+	      {
+		a1_offset = offset;
+		offset -= GET_MODE_SIZE (SImode);
+		continue;
+	      }
 	    if (big)
 	      {
 		/* Generate the address -OFFSET(%fp,%a1.l).  */
@@ -1648,6 +1726,15 @@ m68k_expand_epilogue (bool sibcall_p)
 			    gen_frame_mem (SImode, addr));
 	    offset -= GET_MODE_SIZE (SImode);
 	  }
+      if (a1_restored)
+	{
+	  rtx addr = gen_rtx_PLUS (Pmode, gen_rtx_REG (Pmode, A1_REG),
+				   frame_pointer_rtx);
+	  emit_move_insn (gen_rtx_REG (SImode, A1_REG),
+			  gen_frame_mem (SImode,
+					 plus_constant (Pmode, addr,
+							-a1_offset)));
+	}
     }
   else if (current_frame.reg_mask)
     {
@@ -1670,7 +1757,7 @@ m68k_expand_epilogue (bool sibcall_p)
 			 current_frame.reg_mask, false, false);
     }
 
-  if (current_frame.fpu_no > 0)
+  if (current_frame.fpu_no > 0 && !a1_restored)
     {
       if (big)
 	m68k_emit_movem (gen_rtx_PLUS (Pmode,
@@ -1806,13 +1893,16 @@ m68k_ok_for_sibcall_p (tree decl, tree exp)
 
 /* Implement FUNCTION_ARG_REGNO_P.  d0 and d1 carry arguments under the
    OS-9 convention.  Without -mos9call, they only do so once an os9call
-   attribute has been seen, so that code without either is unchanged.  */
+   attribute has been seen, or in an os9call function (the attribute
+   handler doesn't run again under LTO), so that code without either is
+   unchanged.  */
 
 bool
 m68k_function_arg_regno_p (unsigned int regno)
 {
   return ((regno == D0_REG || regno == D0_REG + 1)
-	  && (TARGET_OS9CALL || m68k_os9call_attribute_seen));
+	  && (TARGET_OS9CALL || m68k_os9call_attribute_seen
+	      || (cfun != NULL && m68k_os9call_current_p ())));
 }
 
 /* For the OS-9 convention, return the register that argument ARG goes
@@ -1871,7 +1961,8 @@ m68k_function_arg_advance (cumulative_args_t cum_v,
   if (arg.type != NULL_TREE && AGGREGATE_TYPE_P (arg.type)
       && int_size_in_bytes (arg.type) > 0
       && int_size_in_bytes (arg.type) < UNITS_PER_WORD
-      && (cum->os9call != 0) != (TARGET_OS9CALL != 0))
+      && (cum->os9call != 0) != (TARGET_OS9CALL != 0)
+      && !cum->interrupt)
     error ("passing a structure or union smaller than 4 bytes by value "
 	   "needs the calling convention selected by %<-mos9call%>");
 
@@ -6390,12 +6481,14 @@ m68k_return_in_memory (const_tree type, const_tree fntype)
 {
   machine_mode mode = TYPE_MODE (type);
 
-  /* The OS-9 convention returns all aggregates, complex values and long
-     double in memory, at the address the caller passes in a0, as
-     Microware Ultra C does.  */
+  /* The OS-9 convention returns all aggregates, complex and vector
+     values and long double in memory, at the address the caller passes
+     in a0, as Microware Ultra C does.  (Interrupt handlers, excluded
+     elsewhere, can't be told apart here; they return nothing.)  */
   if (m68k_os9call_type_p (fntype)
       && (AGGREGATE_TYPE_P (type)
 	  || TREE_CODE (type) == COMPLEX_TYPE
+	  || TREE_CODE (type) == VECTOR_TYPE
 	  || mode == XFmode))
     return true;
 

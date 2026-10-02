@@ -194,6 +194,7 @@ static bool m68k_output_addr_const_extra (FILE *, rtx);
 static bool m68k_readonly_data_p (const_tree);
 static void m68k_check_readonly_placement (tree);
 static void m68k_init_sync_libfuncs (void) ATTRIBUTE_UNUSED;
+static bool m68k_hard_regno_scratch_ok (unsigned int);
 static enum flt_eval_method
 m68k_excess_precision (enum excess_precision_type);
 static unsigned int m68k_hard_regno_nregs (unsigned int, machine_mode);
@@ -399,6 +400,9 @@ static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
 
 #undef TARGET_EXPAND_BUILTIN_VA_START
 #define TARGET_EXPAND_BUILTIN_VA_START m68k_va_start
+
+#undef TARGET_HARD_REGNO_SCRATCH_OK
+#define TARGET_HARD_REGNO_SCRATCH_OK m68k_hard_regno_scratch_ok
 
 #undef TARGET_GIMPLIFY_VA_ARG_EXPR
 #define TARGET_GIMPLIFY_VA_ARG_EXPR m68k_gimplify_va_arg
@@ -841,6 +845,11 @@ m68k_option_override (void)
     }
 
   SUBTARGET_OVERRIDE_OPTIONS;
+
+  /* The va_start hook only for the OS-9 convention's va_list: with the
+     hook, GCC doesn't fold va_start into __builtin_next_arg, so code
+     without -mos9call would change.  */
+  targetm.expand_builtin_va_start = TARGET_OS9CALL ? m68k_va_start : NULL;
 
   /* Setup scheduling options.  */
   if (TUNE_CFV1)
@@ -2220,15 +2229,15 @@ m68k_ok_for_sibcall_p (tree decl, tree exp)
 
 /* Implement FUNCTION_ARG_REGNO_P.  d0 and d1 carry arguments under the
    OS-9 convention.  Without -mos9call, they only do so once an os9call
-   attribute has been seen, or in an os9call function (the attribute
-   handler doesn't run again under LTO), so that code without either is
-   unchanged.  */
+   attribute has been seen, or in an os9call function, so that code
+   without either is unchanged.  Under LTO the attribute handler doesn't
+   run again, so always.  */
 
 bool
 m68k_function_arg_regno_p (unsigned int regno)
 {
   return ((regno == D0_REG || regno == D0_REG + 1)
-	  && (TARGET_OS9CALL || m68k_os9call_attribute_seen
+	  && (TARGET_OS9CALL || m68k_os9call_attribute_seen || in_lto_p
 	      || (cfun != NULL && m68k_os9call_current_p ())));
 }
 
@@ -6894,7 +6903,26 @@ m68k_hard_regno_rename_ok (unsigned int old_reg ATTRIBUTE_UNUSED,
       && !df_regs_ever_live_p (new_reg))
     return 0;
 
+  /* Likewise OS-9 convention functions, for the call-clobbered registers
+     they preserve too (all but d0): the prologue saved those that were
+     live (m68k_save_reg).  Register renaming and peephole2 run after it,
+     and only know the ABI (which counts d1, fp0, fp1, and a0/a1 of
+     unprototyped functions as clobbered).  */
+  if (m68k_os9call_current_p ()
+      && new_reg != D0_REG
+      && call_used_or_fixed_reg_p (new_reg)
+      && !df_regs_ever_live_p (new_reg))
+    return 0;
+
   return 1;
+}
+
+/* Implement TARGET_HARD_REGNO_SCRATCH_OK: as for renaming.  */
+
+static bool
+m68k_hard_regno_scratch_ok (unsigned int regno)
+{
+  return m68k_hard_regno_rename_ok (regno, regno);
 }
 
 /* Implement TARGET_HARD_REGNO_NREGS.

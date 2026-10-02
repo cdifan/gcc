@@ -210,3 +210,17 @@ Use a6-relative for referencing global variable. Only for OS-9/68000 executable.
 mos9call
 Target Mask(OS9CALL)
 Use the Microware OS-9 C calling convention (first arguments in d0/d1).
+
+mbuiltin=
+Target RejectNegative Joined Enum(m68k_builtin_call) Var(m68k_builtin_conv) Init(M68K_BUILTIN_STACKCALL)
+-mbuiltin=stackcall|os9call	Under -mos9call, the calling convention of memcpy, memset, strlen, malloc, free and abort: stackcall for newlib (the default), os9call for Microware's clib.
+
+Enum
+Name(m68k_builtin_call) Type(enum m68k_builtin_call)
+Known calling conventions for built-in C library functions (for use with the -mbuiltin= option):
+
+EnumValue
+Enum(m68k_builtin_call) String(stackcall) Value(M68K_BUILTIN_STACKCALL)
+
+EnumValue
+Enum(m68k_builtin_call) String(os9call) Value(M68K_BUILTIN_OS9CALL)

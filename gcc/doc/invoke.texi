@@ -996,7 +996,8 @@ Objective-C and Objective-C++ Dialects}.
 -mno-short  -mhard-float  -m68881  -msoft-float  -mpcrel @gol
 -malign-int  -mstrict-align  -msep-data  -mno-sep-data @gol
 -mshared-library-id=n  -mid-shared-library  -mno-id-shared-library @gol
--mxgot  -mno-xgot  -mlong-jump-table-offsets  -mos9call  -mno-os9call}
+-mxgot  -mno-xgot  -mlong-jump-table-offsets  -mos9call  -mno-os9call @gol
+-mbuiltin=@var{convention}}
 
 @emph{MCore Options}
 @gccoptlist{-mhardlit  -mno-hardlit  -mdiv  -mno-div  -mrelax-immediates @gol
@@ -23932,6 +23933,17 @@ function (which needs a trampoline), @code{__builtin_apply_args},
 @option{-fprofile-generate}, @option{-fuse-cxa-atexit} and
 @option{-fstack-limit-symbol} or @option{-fstack-limit-register} with
 @code{d0} or @code{d1}.  This option is only available on OS-9 targets.
+
+@item -mbuiltin=@var{convention}
+@opindex mbuiltin
+Under @option{-mos9call}, select the calling convention of the C library
+functions that GCC calls by itself or knows as built-ins: @code{memcpy},
+@code{memset}, @code{strlen}, @code{malloc}, @code{free} and @code{abort}.
+@samp{stackcall} (the default) matches newlib; @samp{os9call} matches
+Microware's @file{clib.l}, where these functions use the OS-9 convention.
+With @samp{os9call}, the parts of @samp{libgcc} that call these functions
+(the DWARF unwinder and emulated TLS) can't be used.  libgcc's own
+helpers keep the stack convention in either case.
 
 @end table
 

@@ -5206,7 +5206,8 @@ for one function, and can be used in typedefs and function pointer types.
 Function types with different conventions are incompatible.  Under
 @option{-mos9call}, declarations of the runtime functions that keep the
 normal convention (@code{memcpy}, @code{memset}, @code{strlen},
-@code{malloc}, @code{free}, @code{abort}, the complex arithmetic helpers
+@code{malloc}, @code{free}, @code{abort} unless @option{-mbuiltin=os9call}
+is used, the complex arithmetic helpers
 such as @code{__mulsc3}, and the @code{_Unwind_}, @code{__atomic_},
 @code{__sync_}, @code{__gxx_personality_} and @code{__gcc_personality_}
 functions) get @code{stackcall} automatically, matched by their name (not

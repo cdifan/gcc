@@ -1083,11 +1083,20 @@ m68k_comp_type_attributes (const_tree type1, const_tree type2)
 
 static const char *const m68k_stackcall_names[] =
 {
-  "memcpy", "memset", "strlen", "malloc", "free", "abort",
   /* libgcc's complex multiply and divide, called through built-in
      declarations.  */
   "__mulsc3", "__muldc3", "__mulxc3", "__divsc3", "__divdc3", "__divxc3",
   NULL
+};
+
+/* C library functions that GCC calls by itself or knows as built-ins.
+   newlib defines memcpy and memset in assembly, and libgcc calls them
+   all, so they keep the stack convention by default.  Microware's clib
+   defines them with the OS-9 convention (-mbuiltin=os9call).  */
+
+static const char *const m68k_builtin_libc_names[] =
+{
+  "memcpy", "memset", "strlen", "malloc", "free", "abort", NULL
 };
 
 static const char *const m68k_stackcall_prefixes[] =
@@ -1117,6 +1126,10 @@ m68k_stackcall_name_p (const_tree decl)
   for (i = 0; m68k_stackcall_names[i] != NULL; i++)
     if (strcmp (name, m68k_stackcall_names[i]) == 0)
       return true;
+  if (m68k_builtin_conv == M68K_BUILTIN_STACKCALL)
+    for (i = 0; m68k_builtin_libc_names[i] != NULL; i++)
+      if (strcmp (name, m68k_builtin_libc_names[i]) == 0)
+	return true;
   for (i = 0; m68k_stackcall_prefixes[i] != NULL; i++)
     if (strncmp (name, m68k_stackcall_prefixes[i],
 		 strlen (m68k_stackcall_prefixes[i])) == 0)

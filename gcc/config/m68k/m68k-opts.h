@@ -31,6 +31,14 @@ enum uarch_type
   unk_arch
 };
 
+/* Calling convention of the C library functions GCC knows as built-ins
+   (-mbuiltin=) under -mos9call.  */
+enum m68k_builtin_call
+{
+  M68K_BUILTIN_STACKCALL,	/* newlib */
+  M68K_BUILTIN_OS9CALL		/* Microware's clib */
+};
+
 /* An enumeration of all supported target devices.  */
 enum target_device
 {

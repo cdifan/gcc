@@ -1,0 +1,4 @@
+# libgcc keeps GCC's stack convention in every multilib, including
+# -mos9call: the compiler calls its helpers as libcalls, which use the
+# stack convention, and declares its runtime entry points stackcall.
+HOST_LIBGCC2_CFLAGS += -mno-os9call

@@ -5195,44 +5195,62 @@ m68k_delegitimize_address (rtx orig_x)
 }
   
 
-/* Return true if an object of TYPE holds addresses (pointers), which
-   need relocating when the program is loaded.  Incomplete types are
-   assumed not to.  */
+/* Return true if an object of TYPE may hold addresses, which need
+   relocating when the program is loaded: pointers, and structures and
+   unions, also incomplete ones, whose members other translation units
+   may not see (an opaque struct ops whose definition holds function
+   pointers).  */
 
 static bool
-m68k_type_has_pointers_p (const_tree type)
+m68k_type_may_hold_addresses_p (const_tree type)
 {
   switch (TREE_CODE (type))
     {
     case POINTER_TYPE:
     case REFERENCE_TYPE:
-      return true;
-    case ARRAY_TYPE:
-      return m68k_type_has_pointers_p (TREE_TYPE (type));
     case RECORD_TYPE:
     case UNION_TYPE:
     case QUAL_UNION_TYPE:
-      for (tree f = TYPE_FIELDS (type); f; f = DECL_CHAIN (f))
-	if (TREE_CODE (f) == FIELD_DECL
-	    && m68k_type_has_pointers_p (TREE_TYPE (f)))
-	  return true;
-      return false;
+      return true;
+    case ARRAY_TYPE:
+      return m68k_type_may_hold_addresses_p (TREE_TYPE (type));
     default:
       return false;
     }
 }
 
-/* Return true if DECL is a read-only variable that holds addresses.  With
-   -ma6rel, such variables are data, not code: OS-9 only relocates
-   addresses in the initialized data when it loads a program.  Other
-   translation units only see the type, so the type decides, also when the
-   initializer happens to hold no addresses (see m68k_select_section).  */
+/* Return true if DECL is a read-only variable that is data anyway, going
+   by what every translation unit sees, its type: when it may hold
+   addresses (OS-9 only relocates addresses in the initialized data when
+   it loads a program), or when it's volatile.  m68k_select_section puts
+   its definition in a data section, also when the initializer happens
+   to hold no addresses.  */
 
 static bool
-m68k_readonly_with_pointers_p (const_tree decl)
+m68k_readonly_data_p (const_tree decl)
 {
   return (TREE_CODE (decl) == VAR_DECL && TREE_READONLY (decl)
-	  && m68k_type_has_pointers_p (TREE_TYPE (decl)));
+	  && (TREE_THIS_VOLATILE (decl)
+	      || m68k_type_may_hold_addresses_p (TREE_TYPE (decl))));
+}
+
+/* Return true if DECL is a read-only variable defined in this translation
+   unit that GCC places in a writable section although its type doesn't
+   say so: its initializer holds an address in an integer, or it's a
+   common symbol.  Only this translation unit can know.  */
+
+static bool
+m68k_readonly_placed_in_data_p (const_tree decl)
+{
+  if (TREE_CODE (decl) != VAR_DECL || !TREE_READONLY (decl)
+      || !TREE_STATIC (decl) || DECL_EXTERNAL (decl)
+      || m68k_readonly_data_p (decl))
+    return false;
+  if (DECL_COMMON (decl))
+    return true;
+  int reloc = (DECL_INITIAL (decl) && DECL_INITIAL (decl) != error_mark_node
+	       ? compute_reloc_for_constant (DECL_INITIAL (decl)) : 0);
+  return !decl_readonly_section (decl, reloc);
 }
 
 /* With -ma6rel, return true if DECL is a variable in the data area,
@@ -5243,19 +5261,36 @@ static bool
 m68k_a6rel_var_p (const_tree decl)
 {
   return (TREE_CODE (decl) == VAR_DECL
-	  && (!TREE_READONLY (decl) || m68k_readonly_with_pointers_p (decl)));
+	  && (!TREE_READONLY (decl) || m68k_readonly_data_p (decl)
+	      || m68k_readonly_placed_in_data_p (decl)));
+}
+
+/* With -ma6rel, warn about a read-only variable that has to be data but
+   that other translation units would address as code.  */
+
+static void
+m68k_check_readonly_placement (tree decl)
+{
+  if (TARGET_A6REL && TREE_PUBLIC (decl)
+      && m68k_readonly_placed_in_data_p (decl))
+    warning_at (DECL_SOURCE_LOCATION (decl), 0,
+		"read-only %qD holds an address, so it is data, but other "
+		"translation units address it as code; declare it without "
+		"%<const%> or with a pointer type", decl);
 }
 
 /* Implement TARGET_ASM_SELECT_SECTION.  With -ma6rel, read-only variables
    that hold addresses go in a writable data section, as if they needed
    relocations (.data.rel.ro), which a linker script places with the other
-   data: see m68k_readonly_with_pointers_p.  */
+   data: see m68k_readonly_data_p.  */
 
 static section *
 m68k_select_section (tree decl, int reloc, unsigned HOST_WIDE_INT align)
 {
-  if (TARGET_A6REL && m68k_readonly_with_pointers_p (decl))
+  if (TARGET_A6REL && m68k_readonly_data_p (decl))
     reloc |= 3;
+  else if (decl && TREE_CODE (decl) == VAR_DECL)
+    m68k_check_readonly_placement (decl);
   return default_elf_select_section (decl, reloc, align);
 }
 
@@ -5264,8 +5299,10 @@ m68k_select_section (tree decl, int reloc, unsigned HOST_WIDE_INT align)
 static void
 m68k_unique_section (tree decl, int reloc)
 {
-  if (TARGET_A6REL && m68k_readonly_with_pointers_p (decl))
+  if (TARGET_A6REL && m68k_readonly_data_p (decl))
     reloc |= 3;
+  else if (decl && TREE_CODE (decl) == VAR_DECL)
+    m68k_check_readonly_placement (decl);
   default_unique_section (decl, reloc);
 }
 

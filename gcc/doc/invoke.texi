@@ -997,7 +997,7 @@ Objective-C and Objective-C++ Dialects}.
 -malign-int  -mstrict-align  -msep-data  -mno-sep-data @gol
 -mshared-library-id=n  -mid-shared-library  -mno-id-shared-library @gol
 -mxgot  -mno-xgot  -mlong-jump-table-offsets  -mos9call  -mno-os9call @gol
--mbuiltin=@var{convention}  -mos9stkchk}
+-mbuiltin=@var{convention}  -mos9stkchk  -mos9newline}
 
 @emph{MCore Options}
 @gccoptlist{-mhardlit  -mno-hardlit  -mdiv  -mno-div  -mrelax-immediates @gol
@@ -23960,6 +23960,18 @@ a margin of 64 bytes (68 if the function makes calls), like Microware's.
 @code{d0} is saved around the check when it holds an argument.
 Interrupt handlers are not checked.  This option requires
 @option{-ma6rel} and is only available on OS-9 targets.
+
+@item -mos9newline
+@itemx -mno-os9newline
+@opindex mos9newline
+Make the escape @samp{\n} a carriage return (13), the end of a line on
+OS-9, as it is in Microware's OS-9 C compilers, where @samp{\n} and
+@samp{\r} are the same character.  This applies to character constants,
+string literals and @samp{#if} expressions alike, and defines
+@code{__OS9NEWLINE__}.  A line feed is then written as @samp{\l}, as in
+Microware's compilers, or as @samp{\x0a} or @samp{\012}; without
+@option{-mos9newline}, @samp{\l} is an unknown escape.  The option is independent of @option{-mos9call}: code that
+passes text to Microware's C library, or writes OS-9 text files, needs it.
 
 @end table
 

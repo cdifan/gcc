@@ -1526,7 +1526,16 @@ convert_escape (cpp_reader *pfile, const uchar *from, const uchar *limit,
 
     case 'b': c = charconsts[1];  break;
     case 'f': c = charconsts[3];  break;
-    case 'n': c = charconsts[4];  break;
+    case 'n':
+      c = CPP_OPTION (pfile, cr_newline) ? charconsts[5] : charconsts[4];
+      break;
+
+    case 'l':
+      /* OS-9's C compilers write a line feed as \l.  */
+      if (!CPP_OPTION (pfile, cr_newline))
+	goto unknown;
+      c = charconsts[4];
+      break;
     case 'r': c = charconsts[5];  break;
     case 't': c = charconsts[6];  break;
     case 'v': c = charconsts[7];  break;

@@ -215,6 +215,10 @@ mos9stkchk
 Target Mask(OS9STKCHK)
 Check the stack in every function by calling Microware C's _stkcheck, as Microware C 3.2 does.
 
+mos9newline
+Target Var(m68k_os9_newline)
+Make the escape \n a carriage return (13), the end of a line on OS-9, and \l a line feed (10), as in Microware C.
+
 mbuiltin=
 Target RejectNegative Joined Enum(m68k_builtin_call) Var(m68k_builtin_conv) Init(M68K_BUILTIN_STACKCALL)
 -mbuiltin=stackcall|os9call	Under -mos9call, the calling convention of memcpy, memset, strlen, malloc, free and abort: stackcall for newlib (the default), os9call for Microware's clib.

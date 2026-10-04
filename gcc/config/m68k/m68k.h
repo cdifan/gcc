@@ -64,6 +64,11 @@ along with GCC; see the file COPYING3.  If not see
       builtin_define_std ("mc68000");					\
       if (TARGET_OS9CALL)						\
 	builtin_define ("__OS9CALL__");					\
+      if (m68k_os9_newline)						\
+	{								\
+	  builtin_define ("__OS9NEWLINE__");				\
+	  cpp_get_options (pfile)->cr_newline = 1;			\
+	}								\
       /* The other mc680x0 macros have traditionally been derived	\
 	 from the tuning setting.  For example, -m68020-60 defines	\
 	 m68060, even though it generates pure 68020 code.  */		\

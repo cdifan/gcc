@@ -416,6 +416,10 @@ struct cpp_options
   /* Zero means dollar signs are punctuation.  */
   unsigned char dollars_in_ident;
 
+  /* Nonzero means the escape \n is a carriage return, as in the C
+     compilers of OS-9, where a line ends with one, and \l a line feed.  */
+  unsigned char cr_newline;
+
   /* Nonzero means UCNs are accepted in identifiers.  */
   unsigned char extended_identifiers;
 

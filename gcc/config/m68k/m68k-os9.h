@@ -30,3 +30,10 @@
 	builtin_define ("_FPF881");			\
     }							\
   while (0)
+
+/* -mos9math: libos9math (newlib's libgloss) goes before libgcc, so its
+   versions of the soft-float routines, through OS-9's math module, are
+   the ones used, also by the C library (hence after it too).  */
+#undef LINK_GCC_C_SEQUENCE_SPEC
+#define LINK_GCC_C_SEQUENCE_SPEC \
+  "%{mos9math:-los9math} %G %{!nolibc:%L %{mos9math:-los9math} %G}"

@@ -997,7 +997,7 @@ Objective-C and Objective-C++ Dialects}.
 -malign-int  -mstrict-align  -msep-data  -mno-sep-data @gol
 -mshared-library-id=n  -mid-shared-library  -mno-id-shared-library @gol
 -mxgot  -mno-xgot  -mlong-jump-table-offsets  -mos9call  -mno-os9call @gol
--mbuiltin=@var{convention}  -mos9stkchk  -mos9newline}
+-mbuiltin=@var{convention}  -mos9stkchk  -mos9newline  -mos9math}
 
 @emph{MCore Options}
 @gccoptlist{-mhardlit  -mno-hardlit  -mdiv  -mno-div  -mrelax-immediates @gol
@@ -23972,6 +23972,19 @@ string literals and @samp{#if} expressions alike, and defines
 Microware's compilers, or as @samp{\x0a} or @samp{\012}; without
 @option{-mos9newline}, @samp{\l} is an unknown escape.  The option is independent of @option{-mos9call}: code that
 passes text to Microware's C library, or writes OS-9 text files, needs it.
+
+@item -mos9math
+@itemx -mno-os9math
+@opindex mos9math
+Link floating-point operations to OS-9's math module, the trap handler
+(@samp{trap #15}) a CD-i player has in ROM, which Microware C 3.2 uses
+with its @option{-X} option, instead of libgcc's software routines.  The
+compiler still calls the usual soft-float routines (@code{__adddf3},
+@code{__ltsf2}, @dots{}); @option{-mos9math} links @file{libos9math}
+from newlib's OS-9 runtime before libgcc, whose versions call the trap
+handler and link it at startup.  Programs get smaller, and their results
+are those of Microware C.  libgcc's floating-point exception flags
+(@code{_fpCCR}) are not kept.  Only for programs that run on OS-9.
 
 @end table
 

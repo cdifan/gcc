@@ -219,6 +219,10 @@ mos9newline
 Target Var(m68k_os9_newline)
 Make the escape \n a carriage return (13), the end of a line on OS-9, and \l a line feed (10), as in Microware C.
 
+mos9math
+Target Var(m68k_os9_math)
+Link floating-point operations to OS-9's math module (trap #15) instead of libgcc's software routines.
+
 mbuiltin=
 Target RejectNegative Joined Enum(m68k_builtin_call) Var(m68k_builtin_conv) Init(M68K_BUILTIN_STACKCALL)
 -mbuiltin=stackcall|os9call	Under -mos9call, the calling convention of memcpy, memset, strlen, malloc, free and abort: stackcall for newlib (the default), os9call for Microware's clib.

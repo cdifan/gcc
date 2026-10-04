@@ -8413,3 +8413,146 @@ m68k_promote_function_mode (const_tree type, machine_mode mode,
 }
 
 #include "gt-m68k.h"
+
+/* -mos9math: floating point through OS-9's math module, the trap #15
+   handler a CD-i player has in ROM (OS-9 Technical Manual, chapter 6).  */
+
+/* The math module's function code for CODE, from INMODE to OUTMODE.  */
+
+static int
+m68k_os9math_function (rtx_code code, machine_mode outmode,
+		       machine_mode inmode)
+{
+  bool df = inmode == DFmode;
+
+  switch (code)
+    {
+    case PLUS: return df ? 14 : 6;		/* T$DAdd, T$FAdd */
+    case MINUS: return df ? 16 : 8;		/* T$DSub, T$FSub */
+    case MULT: return df ? 18 : 10;		/* T$DMul, T$FMul */
+    case DIV: return df ? 19 : 11;		/* T$DDiv, T$FDiv */
+    case FLOAT: return outmode == DFmode ? 32 : 31;	/* T$LtoD, T$LtoF */
+    case UNSIGNED_FLOAT: return outmode == DFmode ? 34 : 33; /* T$UtoD, T$UtoF */
+    case FIX: return df ? 36 : 35;		/* T$DtoL, T$FtoL */
+    case UNSIGNED_FIX: return df ? 38 : 37;	/* T$DtoU, T$FtoU */
+    case FLOAT_EXTEND: return 39;		/* T$FtoD */
+    case FLOAT_TRUNCATE: return 40;		/* T$DtoF */
+    default: gcc_unreachable ();
+    }
+}
+
+/* Expands CODE on OP1 (in INMODE), and OP2 for a binary operation, into
+   DEST through the math module: the operands go to d0:d1 and d2:d3
+   (doubles) or d0 and d1, the trap insn, the result from d0:d1 or d0.  */
+
+void
+m68k_expand_os9math (rtx_code code, machine_mode inmode, rtx dest, rtx op1,
+		     rtx op2)
+{
+  machine_mode outmode = GET_MODE (dest);
+  rtx in1 = gen_rtx_REG (inmode, D0_REG);
+  rtx out = gen_rtx_REG (outmode, D0_REG);
+  rtx fn = GEN_INT (m68k_os9math_function (code, outmode, inmode));
+  rtx d1 = gen_rtx_REG (SImode, D0_REG + 1);
+  rtx d23 = gen_rtx_REG (DFmode, D0_REG + 2);
+  rtx src;
+  rtvec v;
+
+  emit_move_insn (in1, op1);
+  if (op2)
+    {
+      rtx in2 = gen_rtx_REG (inmode,
+			     inmode == DFmode ? D0_REG + 2 : D0_REG + 1);
+
+      emit_move_insn (in2, op2);
+      src = gen_rtx_UNSPEC (outmode, gen_rtvec (3, in1, in2, fn),
+			    UNSPEC_OS9MATH);
+    }
+  else
+    src = gen_rtx_UNSPEC (outmode, gen_rtvec (2, in1, fn), UNSPEC_OS9MATH);
+
+  if (outmode == DFmode)
+    v = gen_rtvec (2, gen_rtx_SET (out, src),
+		   gen_rtx_CLOBBER (VOIDmode, d23));
+  else
+    v = gen_rtvec (3, gen_rtx_SET (out, src),
+		   gen_rtx_CLOBBER (VOIDmode, d1),
+		   gen_rtx_CLOBBER (VOIDmode, d23));
+  emit_insn (gen_rtx_PARALLEL (VOIDmode, v));
+  emit_move_insn (dest, out);
+}
+
+/* Whether comparison X is one the math module's compare can branch on:
+   all but ORDERED and UNORDERED.  */
+
+bool
+m68k_os9math_ordered_code_p (rtx x)
+{
+  return GET_CODE (x) != ORDERED && GET_CODE (x) != UNORDERED;
+}
+
+/* Expands a cbranch<mode>4 (OPERANDS as its) through the math module:
+   the operands go to d0:d1 and d2:d3 (doubles) or d0 and d1 (floats),
+   then the compare-and-branch insn.  As in Microware C, the compare is
+   the math module's whether or not NaNs are honoured: it knows no NaNs,
+   and its errors end the program (TRAPV) rather than make one.  Only
+   ORDERED and UNORDERED (isnan, isunordered) check for NaNs, with
+   libgcc's __unord<mode>2.  */
+
+void
+m68k_expand_os9math_cbranch (rtx *operands)
+{
+  machine_mode mode = GET_MODE (operands[1]);
+  rtx_code code = GET_CODE (operands[0]);
+  rtx a = gen_rtx_REG (mode, D0_REG);
+  rtx b = gen_rtx_REG (mode, mode == DFmode ? D0_REG + 2 : D0_REG + 1);
+  rtx cond;
+
+  if (code == ORDERED || code == UNORDERED)
+    {
+      rtx unord = emit_library_call_value (optab_libfunc (unord_optab, mode),
+					   NULL_RTX, LCT_CONST, SImode,
+					   operands[1], mode,
+					   operands[2], mode);
+      emit_cmp_and_jump_insns (unord, const0_rtx,
+			       code == UNORDERED ? NE : EQ, NULL_RTX,
+			       SImode, 0, operands[3]);
+      return;
+    }
+
+  emit_move_insn (a, operands[1]);
+  emit_move_insn (b, operands[2]);
+  cond = gen_rtx_fmt_ee (GET_CODE (operands[0]), VOIDmode, a, b);
+  emit_jump_insn (gen_rtx_SET (pc_rtx,
+			       gen_rtx_IF_THEN_ELSE (VOIDmode, cond,
+						     gen_rtx_LABEL_REF
+						       (VOIDmode, operands[3]),
+						     pc_rtx)));
+}
+
+/* Outputs the compare (T$DCmp or T$FCmp for MODE) and returns the branch
+   to label operand 0 on the comparison operand 1, or on its reverse if
+   REVERSED.  The math module's compare sets N and Z as for a signed
+   compare and clears V and C.  It knows no NaNs, so the unordered codes
+   count as their ordered ones; ORDERED and UNORDERED never come here.  */
+
+const char *
+m68k_output_os9math_branch (rtx *operands, machine_mode mode, bool reversed)
+{
+  rtx_code code = GET_CODE (operands[1]);
+
+  output_asm_insn (mode == DFmode ? "trap #15\n\t.word 20"
+		   : "trap #15\n\t.word 12", operands);
+  if (reversed)
+    code = reverse_condition_maybe_unordered (code);
+  switch (code)
+    {
+    case EQ: case UNEQ: return "jeq %l0";
+    case NE: case LTGT: return "jne %l0";
+    case LT: case UNLT: return "jlt %l0";
+    case LE: case UNLE: return "jle %l0";
+    case GT: case UNGT: return "jgt %l0";
+    case GE: case UNGE: return "jge %l0";
+    default: gcc_unreachable ();
+    }
+}

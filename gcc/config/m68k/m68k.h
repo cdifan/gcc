@@ -251,6 +251,12 @@ along with GCC; see the file COPYING3.  If not see
 #define TARGET_FIDOA		((m68k_cpu_flags & FL_FIDOA) != 0)
 #define TARGET_CAS		((m68k_cpu_flags & FL_CAS) != 0)
 
+/* -mos9math with soft float: floating point in MODE (SFmode or DFmode)
+   through OS-9's math module, inline (trap #15).  */
+#define M68K_OS9MATH_P(MODE)					\
+  (m68k_os9_math && !TARGET_HARD_FLOAT				\
+   && ((MODE) == SFmode || (MODE) == DFmode))
+
 /* Size (in bytes) of FPU registers.  */
 #define TARGET_FP_REG_SIZE	(TARGET_COLDFIRE ? 8 : 12)
 

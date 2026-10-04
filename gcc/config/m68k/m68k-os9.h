@@ -33,7 +33,9 @@
 
 /* -mos9math: libos9math (newlib's libgloss) goes before libgcc, so its
    versions of the soft-float routines, through OS-9's math module, are
-   the ones used, also by the C library (hence after it too).  */
+   the ones used, also by the C library (hence after it too).  -u links
+   its constructor that links the math module also into programs that
+   only use the inline functions of newlib's <machine/os9math.h>.  */
 #undef LINK_GCC_C_SEQUENCE_SPEC
 #define LINK_GCC_C_SEQUENCE_SPEC \
-  "%{mos9math:-los9math} %G %{!nolibc:%L %{mos9math:-los9math} %G}"
+  "%{mos9math:-u __os9_math_link -los9math} %G %{!nolibc:%L %{mos9math:-los9math} %G}"

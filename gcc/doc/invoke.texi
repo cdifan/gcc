@@ -23984,7 +23984,15 @@ compiler still calls the usual soft-float routines (@code{__adddf3},
 from newlib's OS-9 runtime before libgcc, whose versions call the trap
 handler and link it at startup.  Programs get smaller, and their results
 are those of Microware C.  libgcc's floating-point exception flags
-(@code{_fpCCR}) are not kept.  Only for programs that run on OS-9.
+(@code{_fpCCR}) are not kept.  @option{-mos9math} also defines
+@code{__OS9MATH__}, with which newlib's @file{math.h} makes the
+functions the math module has (@code{sin}, @code{cos}, @code{tan},
+@code{asin}, @code{acos}, @code{atan}, @code{log}, @code{log10},
+@code{sqrt}, @code{exp} and @code{pow}) inline traps.  As with
+Microware C, errors (division by zero, overflow, a domain error such as
+@code{sqrt (-1)}) raise a TRAPV exception, which ends the program unless
+it handles it, instead of giving an infinity or a NaN.  Only for programs
+that run on OS-9.
 
 @end table
 

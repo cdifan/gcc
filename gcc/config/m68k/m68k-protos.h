@@ -20,6 +20,10 @@ along with GCC; see the file COPYING3.  If not see
 /* Define functions defined in aux-output.c and used in templates.  */
 
 #ifdef RTX_CODE
+extern void m68k_expand_os9math (rtx_code, machine_mode, rtx, rtx, rtx);
+extern void m68k_expand_os9math_cbranch (rtx *);
+extern bool m68k_os9math_ordered_code_p (rtx);
+extern const char *m68k_output_os9math_branch (rtx *, machine_mode, bool);
 extern enum m68k_function_kind m68k_get_function_kind (tree);
 extern HOST_WIDE_INT m68k_initial_elimination_offset (int from, int to);
 

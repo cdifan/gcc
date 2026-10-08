@@ -65,10 +65,7 @@ along with GCC; see the file COPYING3.  If not see
       if (TARGET_OS9CALL)						\
 	builtin_define ("__OS9CALL__");					\
       if (m68k_os9_newline)						\
-	{								\
-	  builtin_define ("__OS9NEWLINE__");				\
-	  cpp_get_options (pfile)->cr_newline = 1;			\
-	}								\
+	builtin_define ("__OS9NEWLINE__");				\
       if (m68k_os9_math)						\
 	builtin_define ("__OS9MATH__");					\
       /* The other mc680x0 macros have traditionally been derived	\
@@ -206,6 +203,18 @@ along with GCC; see the file COPYING3.  If not see
 									\
       builtin_assert ("cpu=m68k");					\
       builtin_assert ("machine=m68k");					\
+    }									\
+  while (0)
+
+/* -mos9newline: \n is a carriage return in C strings.  Set where every
+   C compilation passes (init_pragma), not with the builtin macros above,
+   which a compiler reading preprocessed input (-save-temps,
+   -fpreprocessed) never defines.  */
+#define REGISTER_TARGET_PRAGMAS()					\
+  do									\
+    {									\
+      if (m68k_os9_newline)						\
+	cpp_get_options (parse_in)->cr_newline = 1;			\
     }									\
   while (0)
 

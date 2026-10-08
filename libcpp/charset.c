@@ -1870,22 +1870,27 @@ cpp_interpret_string_ranges (cpp_reader *pfile, const cpp_string *from,
 }
 
 /* Subroutine of do_line and do_linemarker.  Convert escape sequences
-   in a string, but do not perform character set conversion.  */
+   in a string, but do not perform character set conversion.  Such
+   strings (asm templates, file names, #pragma GCC diagnostics) are for
+   the host, so \n stays a line feed under -mos9newline too.  */
 bool
 cpp_interpret_string_notranslate (cpp_reader *pfile, const cpp_string *from,
 				  size_t count,	cpp_string *to,
 				  enum cpp_ttype type ATTRIBUTE_UNUSED)
 {
   struct cset_converter save_narrow_cset_desc = pfile->narrow_cset_desc;
+  unsigned char save_cr_newline = CPP_OPTION (pfile, cr_newline);
   bool retval;
 
   pfile->narrow_cset_desc.func = convert_no_conversion;
   pfile->narrow_cset_desc.cd = (iconv_t) -1;
   pfile->narrow_cset_desc.width = CPP_OPTION (pfile, char_precision);
+  CPP_OPTION (pfile, cr_newline) = 0;
 
   retval = cpp_interpret_string (pfile, from, count, to, CPP_STRING);
 
   pfile->narrow_cset_desc = save_narrow_cset_desc;
+  CPP_OPTION (pfile, cr_newline) = save_cr_newline;
   return retval;
 }
 

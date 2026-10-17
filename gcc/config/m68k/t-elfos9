@@ -24,3 +24,8 @@
 # keeps the stack convention (libgcc/config/m68k/t-elfos9).
 MULTILIB_OPTIONS = mos9call
 MULTILIB_DIRNAMES = os9call
+# -mos9call=c32 is -mos9call; -mos9call=ucc (Ultra C's placement of a
+# variadic call's unnamed arguments) uses the same libraries, built with
+# -mos9call: libgcc has no variadic functions, but newlib's variadic
+# functions (printf, ...) expect the c32 placement.
+MULTILIB_MATCHES = mos9call=mos9call?c32 mos9call=mos9call?ucc

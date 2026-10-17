@@ -39,6 +39,14 @@ enum m68k_builtin_call
   M68K_BUILTIN_OS9CALL		/* Microware's clib */
 };
 
+/* Where the OS-9 calling convention (-mos9call=) puts a variadic call's
+   unnamed arguments.  */
+enum m68k_os9call_place
+{
+  M68K_OS9CALL_C32,		/* like a K&R call, as Microware C 3.2 */
+  M68K_OS9CALL_UCC		/* on the stack, as Ultra C */
+};
+
 /* An enumeration of all supported target devices.  */
 enum target_device
 {

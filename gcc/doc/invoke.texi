@@ -23946,7 +23946,9 @@ an unprototyped call, as Microware C 3.2 does, so the first one can be in
 @code{d1}; @samp{ucc} always puts them on the stack, as Microware Ultra C
 does, for code that calls Ultra C's variadic library functions or is called
 by Ultra C code.  Named arguments are placed alike in both.  With
-@samp{ucc}, the predefined macro @code{__OS9CALL_UCC__} is defined too.
+@samp{ucc}, @code{va_list} is a plain pointer to the next stack argument,
+as Ultra C's (which its @code{vprintf} and the like take), and the
+predefined macro @code{__OS9CALL_UCC__} is defined too.
 Both use the libraries built with @option{-mos9call}, whose variadic
 functions expect the @samp{c32} placement.
 

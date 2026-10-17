@@ -220,6 +220,7 @@ static void m68k_setup_incoming_varargs (cumulative_args_t,
 					 const function_arg_info &, int *,
 					 int);
 static bool m68k_strict_argument_naming (cumulative_args_t);
+static bool m68k_va_record_p (void);
 static tree m68k_build_builtin_va_list (void);
 static void m68k_va_start (tree, rtx);
 static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
@@ -858,7 +859,7 @@ m68k_option_override (void)
   /* The va_start hook only for the OS-9 convention's va_list: with the
      hook, GCC doesn't fold va_start into __builtin_next_arg, so code
      without -mos9call would change.  */
-  targetm.expand_builtin_va_start = TARGET_OS9CALL ? m68k_va_start : NULL;
+  targetm.expand_builtin_va_start = m68k_va_record_p () ? m68k_va_start : NULL;
 
   /* Setup scheduling options.  */
   if (TUNE_CFV1)
@@ -2372,7 +2373,16 @@ m68k_function_arg_padding (machine_mode mode, const_tree type)
    copy of d1 saved by the prologue, or is null once d1 has been used or
    skipped, or if it can't hold an argument.  Without -mos9call, va_list
    stays a plain pointer, and os9call variadic functions can only be
-   defined when no unnamed argument can be in d1.  */
+   defined when no unnamed argument can be in d1.  So too under
+   -mos9call=ucc, where no unnamed argument is in a register: a plain
+   pointer, as Ultra C's va_list (which its vprintf and the like take).  */
+
+/* Whether va_list is the structure above.  */
+static bool
+m68k_va_record_p (void)
+{
+  return TARGET_OS9CALL && m68k_os9call_kind != M68K_OS9CALL_UCC;
+}
 
 /* The stack slot where the prologue saved d1, if the function being
    expanded needs it (see m68k_setup_incoming_varargs).  */
@@ -2428,7 +2438,7 @@ m68k_build_builtin_va_list (void)
 {
   tree record, type_decl, f_stk, f_d1;
 
-  if (!TARGET_OS9CALL)
+  if (!m68k_va_record_p ())
     return std_build_builtin_va_list ();
 
   record = lang_hooks.types.make_type (RECORD_TYPE);
@@ -2456,7 +2466,7 @@ m68k_va_start (tree valist, rtx nextarg)
 {
   tree record, f_stk, f_d1, stk, d1, t;
 
-  if (!TARGET_OS9CALL)
+  if (!m68k_va_record_p ())
     {
       std_expand_builtin_va_start (valist, nextarg);
       return;
@@ -2496,7 +2506,7 @@ m68k_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
   HOST_WIDE_INT size, slot, pad;
   bool scalar;
 
-  if (!TARGET_OS9CALL)
+  if (!m68k_va_record_p ())
     return std_gimplify_va_arg_expr (valist, type, pre_p, post_p);
 
   record = TREE_TYPE (va_list_type_node);

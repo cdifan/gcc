@@ -64,6 +64,8 @@ along with GCC; see the file COPYING3.  If not see
       builtin_define_std ("mc68000");					\
       if (TARGET_OS9CALL)						\
 	builtin_define ("__OS9CALL__");					\
+      if (TARGET_OS9CALL && m68k_os9call_kind == M68K_OS9CALL_UCC)	\
+	builtin_define ("__OS9CALL_UCC__");				\
       if (m68k_os9_newline)						\
 	builtin_define ("__OS9NEWLINE__");				\
       if (m68k_os9_math)						\

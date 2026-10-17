@@ -211,6 +211,20 @@ mos9call
 Target Mask(OS9CALL)
 Use the Microware OS-9 C calling convention (first arguments in d0/d1).
 
+mos9call=
+Target RejectNegative Joined Enum(m68k_os9call_kind) Var(m68k_os9call_kind) Init(M68K_OS9CALL_C32)
+-mos9call=c32|ucc	Use the Microware OS-9 C calling convention, with a variadic call's unnamed arguments placed as Microware C 3.2 does (c32, like a K&R call, as -mos9call) or as Ultra C does (ucc, on the stack).
+
+Enum
+Name(m68k_os9call_kind) Type(enum m68k_os9call_place)
+Where -mos9call= puts a variadic call's unnamed arguments:
+
+EnumValue
+Enum(m68k_os9call_kind) String(c32) Value(M68K_OS9CALL_C32)
+
+EnumValue
+Enum(m68k_os9call_kind) String(ucc) Value(M68K_OS9CALL_UCC)
+
 mos9stkchk
 Target Mask(OS9STKCHK)
 Check the stack in every function by calling Microware C's _stkcheck, as Microware C 3.2 does.

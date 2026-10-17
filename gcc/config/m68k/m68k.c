@@ -219,6 +219,7 @@ static pad_direction m68k_function_arg_padding (machine_mode, const_tree);
 static void m68k_setup_incoming_varargs (cumulative_args_t,
 					 const function_arg_info &, int *,
 					 int);
+static bool m68k_strict_argument_naming (cumulative_args_t);
 static tree m68k_build_builtin_va_list (void);
 static void m68k_va_start (tree, rtx);
 static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
@@ -394,6 +395,9 @@ static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
 
 #undef TARGET_SETUP_INCOMING_VARARGS
 #define TARGET_SETUP_INCOMING_VARARGS m68k_setup_incoming_varargs
+
+#undef TARGET_STRICT_ARGUMENT_NAMING
+#define TARGET_STRICT_ARGUMENT_NAMING m68k_strict_argument_naming
 
 #undef TARGET_BUILD_BUILTIN_VA_LIST
 #define TARGET_BUILD_BUILTIN_VA_LIST m68k_build_builtin_va_list
@@ -792,6 +796,11 @@ m68k_option_override (void)
       opt_fstack_limit_symbol_arg = NULL;
       opt_fstack_limit_register_no = -1;
     }
+
+  /* -mos9call=KIND is -mos9call too, unless -mno-os9call is given.  */
+  if (global_options_set.x_m68k_os9call_kind
+      && !(target_flags_explicit & MASK_OS9CALL))
+    target_flags |= MASK_OS9CALL;
 
   /* Options that don't work with the OS-9 calling convention.  */
   if (TARGET_OS9CALL && !M68K_OS9_TARGET)
@@ -2249,7 +2258,9 @@ m68k_function_arg_regno_p (unsigned int regno)
    if it's an 8-byte scalar; argument 2 goes in d1 if it's a scalar of up
    to 4 bytes and argument 1 used d0 alone.  Aggregates, complex values
    and long double always go on the stack.  Named and unnamed arguments
-   are treated alike, as in a K&R call.  */
+   are treated alike, as in a K&R call (Microware C 3.2), except under
+   -mos9call=ucc, where unnamed arguments always go on the stack (Ultra
+   C).  */
 
 static rtx
 m68k_os9call_arg_reg (const CUMULATIVE_ARGS *cum, const function_arg_info &arg)
@@ -2257,6 +2268,8 @@ m68k_os9call_arg_reg (const CUMULATIVE_ARGS *cum, const function_arg_info &arg)
   HOST_WIDE_INT size;
 
   if (!cum->os9call || arg.end_marker_p () || cum->argno > 1)
+    return NULL_RTX;
+  if (!arg.named && m68k_os9call_kind == M68K_OS9CALL_UCC)
     return NULL_RTX;
   if (arg.type != NULL_TREE
       && (AGGREGATE_TYPE_P (arg.type)
@@ -2273,6 +2286,20 @@ m68k_os9call_arg_reg (const CUMULATIVE_ARGS *cum, const function_arg_info &arg)
   if (cum->argno == 1 && cum->d1_free && size <= 4)
     return gen_rtx_REG (arg.mode, D0_REG + 1);
   return NULL_RTX;
+}
+
+/* Implement TARGET_STRICT_ARGUMENT_NAMING.  Under -mos9call=ucc, a
+   variadic call's unnamed arguments must reach m68k_os9call_arg_reg as
+   unnamed, and a variadic function's last named parameter as named:
+   without this hook, GCC takes all of a call's arguments as named (the
+   target defines TARGET_SETUP_INCOMING_VARARGS), and the last named
+   parameter as unnamed.  */
+
+static bool
+m68k_strict_argument_naming (cumulative_args_t cum_v)
+{
+  return (get_cumulative_args (cum_v)->os9call
+	  && m68k_os9call_kind == M68K_OS9CALL_UCC);
 }
 
 /* Implement TARGET_FUNCTION_ARG.  Under the stack convention, all
@@ -2378,7 +2405,9 @@ m68k_setup_incoming_varargs (cumulative_args_t cum_v,
 		      && GET_MODE_SIZE (arg.mode) <= 4);
       next.argno++;
     }
-  d1_pending = next.argno == 1 && next.d1_free;
+  /* Under -mos9call=ucc, no unnamed argument is in a register.  */
+  d1_pending = (next.argno == 1 && next.d1_free
+		&& m68k_os9call_kind != M68K_OS9CALL_UCC);
 
   if (!d1_pending)
     return;

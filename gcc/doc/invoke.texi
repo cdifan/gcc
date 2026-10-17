@@ -997,7 +997,7 @@ Objective-C and Objective-C++ Dialects}.
 -malign-int  -mstrict-align  -msep-data  -mno-sep-data @gol
 -mshared-library-id=n  -mid-shared-library  -mno-id-shared-library @gol
 -mxgot  -mno-xgot  -mlong-jump-table-offsets  -mos9call  -mno-os9call @gol
--mbuiltin=@var{convention}  -mos9stkchk  -mos9newline  -mos9math}
+-mos9call=@var{kind}  -mbuiltin=@var{convention}  -mos9stkchk  -mos9newline  -mos9math}
 
 @emph{MCore Options}
 @gccoptlist{-mhardlit  -mno-hardlit  -mdiv  -mno-div  -mrelax-immediates @gol
@@ -23936,6 +23936,19 @@ function (which needs a trampoline), @code{__builtin_apply_args},
 @option{-fprofile-generate}, @option{-fuse-cxa-atexit} and
 @option{-fstack-limit-symbol} or @option{-fstack-limit-register} with
 @code{d0} or @code{d1}.  This option is only available on OS-9 targets.
+
+@item -mos9call=@var{kind}
+@opindex mos9call=
+Use the OS-9 calling convention as @option{-mos9call} does, with a variadic
+call's unnamed arguments placed as @var{kind} says: @samp{c32} (the
+default, the same as @option{-mos9call}) places them like the arguments of
+an unprototyped call, as Microware C 3.2 does, so the first one can be in
+@code{d1}; @samp{ucc} always puts them on the stack, as Microware Ultra C
+does, for code that calls Ultra C's variadic library functions or is called
+by Ultra C code.  Named arguments are placed alike in both.  With
+@samp{ucc}, the predefined macro @code{__OS9CALL_UCC__} is defined too.
+Both use the libraries built with @option{-mos9call}, whose variadic
+functions expect the @samp{c32} placement.
 
 @item -mbuiltin=@var{convention}
 @opindex mbuiltin

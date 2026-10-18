@@ -164,6 +164,7 @@ static bool m68k_can_eliminate (const int, const int);
 static void m68k_conditional_register_usage (void);
 static bool m68k_legitimate_address_p (machine_mode, rtx, bool);
 static void m68k_option_override (void);
+static void m68k_file_start (void);
 static void m68k_override_options_after_change (void);
 static rtx find_addr_reg (rtx);
 static const char *singlemove_string (rtx *);
@@ -262,6 +263,9 @@ static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
 
 #undef TARGET_ASM_FILE_START_APP_OFF
 #define TARGET_ASM_FILE_START_APP_OFF true
+
+#undef TARGET_ASM_FILE_START
+#define TARGET_ASM_FILE_START m68k_file_start
 
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS m68k_legitimize_address
@@ -599,11 +603,28 @@ enum M68K_SYMBOLIC_CALL m68k_symbolic_call_var;
 
 /* Implement TARGET_OPTION_OVERRIDE.  */
 
+int m68k_spanreg = -1;
+
 static void
 m68k_option_override (void)
 {
   const struct m68k_target_selection *entry;
   unsigned long target_mask;
+
+  /* -mspanreg=: a register neither the OS-9 convention's argument and
+     result registers (d0, d1, a0, a1) nor the frame, data or stack
+     pointer.  */
+  if (m68k_spanreg_string != NULL)
+    {
+      const char *s = m68k_spanreg_string;
+      m68k_spanreg = -1;
+      if (s[0] == 'd' && s[1] >= '2' && s[1] <= '7' && s[2] == '\0')
+	m68k_spanreg = D0_REG + (s[1] - '0');
+      else if (s[0] == 'a' && s[1] >= '2' && s[1] <= '4' && s[2] == '\0')
+	m68k_spanreg = A0_REG + (s[1] - '0');
+      else
+	error ("%<-mspanreg=%s%>: the register is one of d2-d7 and a2-a4", s);
+    }
 
   if (global_options_set.x_m68k_arch_option)
     m68k_arch_entry = &all_isas[m68k_arch_option];
@@ -8365,6 +8386,20 @@ m68k_conditional_register_usage (void)
     fixed_regs[PIC_REG] = call_used_regs[PIC_REG] = 1;
   if (TARGET_A6REL)
     fixed_regs[A6_REG] = call_used_regs[A6_REG] = 1;
+  if (m68k_spanreg >= 0)
+    fixed_regs[m68k_spanreg] = call_used_regs[m68k_spanreg] = 1;
+}
+
+/* Implement TARGET_ASM_FILE_START: with -mspanreg=, its register as the
+   absolute symbol __os9_spanreg (0-7 d0-d7, 8-15 a0-a7), from which
+   gastor68 writes r68's spanreg directive.  */
+
+static void
+m68k_file_start (void)
+{
+  default_file_start ();
+  if (m68k_spanreg >= 0)
+    fprintf (asm_out_file, "\t.set\t__os9_spanreg,%d\n", m68k_spanreg);
 }
 
 static void

@@ -145,6 +145,10 @@ along with GCC; see the file COPYING3.  If not see
       if (TARGET_A6REL)							\
 	builtin_define ("__A6REL__");					\
 									\
+      /* A register kept free for r68's spanreg (-mspanreg=).  */	\
+      if (m68k_spanreg >= 0)						\
+	builtin_define_with_int_value ("__OS9_SPANREG__", m68k_spanreg); \
+									\
       if (TARGET_COLDFIRE)						\
 	{								\
 	  const char *tmp;						\
@@ -938,6 +942,8 @@ extern enum uarch_type m68k_tune;
 extern enum fpu_type m68k_fpu;
 extern unsigned int m68k_cpu_flags;
 extern unsigned int m68k_tune_flags;
+/* -mspanreg=: the hard register kept free for r68's spanreg, -1 if none.  */
+extern int m68k_spanreg;
 extern const char *m68k_symbolic_call;
 extern const char *m68k_symbolic_jump;
 

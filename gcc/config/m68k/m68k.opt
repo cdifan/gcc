@@ -207,6 +207,10 @@ ma6rel
 Target RejectNegative Mask(A6REL)
 Use a6-relative for referencing global variable. Only for OS-9/68000 executable.
 
+mspanreg=
+Target RejectNegative Joined Var(m68k_spanreg_string)
+-mspanreg=REG	Keep REG (d2-d7, a2-a4) free for Microware r68's long branches (its spanreg directive, with -bt): GCC never uses it, and the assembly says so (for gastor68).
+
 mos9call
 Target Mask(OS9CALL)
 Use the Microware OS-9 C calling convention (first arguments in d0/d1).

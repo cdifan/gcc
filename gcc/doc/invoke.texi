@@ -1201,7 +1201,8 @@ Objective-C and Objective-C++ Dialects}.
 -mshared-library-id=@var{n}  -mid-shared-library
 -mxgot  -mxtls  -mlong-jump-table-offsets  -mos9call
 -mbuiltin=@var{convention}  -mos9stkchk  -mos9newline
--mos9math  -mos9call=@var{kind}  -mos9regfunc}
+-mos9math  -mos9call=@var{kind}  -mos9regfunc
+-mos9newline=@var{kind}}
 
 @emph{MCore Options} (@ref{MCore Options})
 @gccoptlist{-mhardlit  -mdiv  -mrelax-immediates
@@ -28616,6 +28617,7 @@ Interrupt handlers are not checked.  This option requires
 
 @item -mos9newline
 @itemx -mno-os9newline
+@itemx -mos9newline=@var{kind}
 @opindex mos9newline
 Make the escape @samp{\n} a carriage return (13), the end of a line on
 OS-9, as it is in Microware's OS-9 C compilers, where @samp{\n} and
@@ -28623,8 +28625,17 @@ OS-9, as it is in Microware's OS-9 C compilers, where @samp{\n} and
 string literals and @samp{#if} expressions alike, and defines
 @code{__OS9NEWLINE__}.  A line feed is then written as @samp{\l}, as in
 Microware's compilers, or as @samp{\x0a} or @samp{\012}; without
-@option{-mos9newline}, @samp{\l} is an unknown escape.  The option is independent of @option{-mos9call}: code that
-passes text to Microware's C library, or writes OS-9 text files, needs it.
+@option{-mos9newline}, @samp{\l} is an unknown escape.  The option is
+independent of @option{-mos9call}: code that passes text to Microware's
+C library, or writes OS-9 text files, needs it.
+
+@option{-mos9newline=} names the treatment of @samp{\n}, @samp{\r} and
+@samp{\l}: @samp{standard} is ISO C's (as @option{-mno-os9newline});
+@samp{microware} is @option{-mos9newline}'s; @samp{swapped} is that of
+Microware Ultra C's strict ANSI mode, where @samp{\n} is a carriage return
+and @samp{\r} a line feed, so that the two still differ, and @samp{\l} is
+an unknown escape.  @code{__OS9NEWLINE__} is 1 for @samp{microware} and 2
+for @samp{swapped}.
 
 @item -mos9regfunc
 @itemx -mno-os9regfunc

@@ -66,8 +66,10 @@ along with GCC; see the file COPYING3.  If not see
 	builtin_define ("__OS9CALL__");					\
       if (TARGET_OS9CALL && m68k_os9call_kind == M68K_OS9CALL_UCC)	\
 	builtin_define ("__OS9CALL_UCC__");				\
-      if (m68k_os9_newline)						\
+      if (m68k_os9_newline == 1)					\
 	builtin_define ("__OS9NEWLINE__");				\
+      else if (m68k_os9_newline == 2)					\
+	builtin_define ("__OS9NEWLINE__=2");				\
       if (m68k_os9_math)						\
 	builtin_define ("__OS9MATH__");					\
       /* The other mc680x0 macros have traditionally been derived	\
@@ -212,7 +214,8 @@ along with GCC; see the file COPYING3.  If not see
     }									\
   while (0)
 
-/* -mos9newline: \n is a carriage return in C strings.  Set where every
+/* -mos9newline[=]: \n is a carriage return in C strings (libcpp's
+   cr_newline takes the option's value: 1 microware, 2 swapped).  Set where every
    C compilation passes (init_pragma), not with the builtin macros above,
    which a compiler reading preprocessed input (-save-temps,
    -fpreprocessed) never defines.  */
@@ -220,7 +223,7 @@ along with GCC; see the file COPYING3.  If not see
   do									\
     {									\
       if (m68k_os9_newline)						\
-	cpp_get_options (parse_in)->cr_newline = 1;			\
+	cpp_get_options (parse_in)->cr_newline = m68k_os9_newline;	\
     }									\
   while (0)
 

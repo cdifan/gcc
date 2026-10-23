@@ -1531,12 +1531,15 @@ convert_escape (cpp_reader *pfile, const uchar *from, const uchar *limit,
       break;
 
     case 'l':
-      /* OS-9's C compilers write a line feed as \l.  */
-      if (!CPP_OPTION (pfile, cr_newline))
+      /* OS-9's C compilers write a line feed as \l (but Ultra C's
+	 strict ANSI mode, where \r is one).  */
+      if (CPP_OPTION (pfile, cr_newline) != 1)
 	goto unknown;
       c = charconsts[4];
       break;
-    case 'r': c = charconsts[5];  break;
+    case 'r':
+      c = CPP_OPTION (pfile, cr_newline) == 2 ? charconsts[4] : charconsts[5];
+      break;
     case 't': c = charconsts[6];  break;
     case 'v': c = charconsts[7];  break;
 

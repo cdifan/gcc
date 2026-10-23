@@ -235,7 +235,24 @@ Check the stack in every function by calling Microware C's _stkcheck, as Microwa
 
 mos9newline
 Target Var(m68k_os9_newline)
-Make the escape \\n a carriage return (13), the end of a line on OS-9, and \\l a line feed (10), as in Microware C.
+Make the escape \\n a carriage return (13), the end of a line on OS-9, and \\l a line feed (10), as in Microware C (-mos9newline=microware).
+
+mos9newline=
+Target RejectNegative Joined Enum(m68k_os9_newline_kind) Var(m68k_os9_newline)
+-mos9newline=standard|microware|swapped	The escapes \\n, \\r and \\l: standard (as -mno-os9newline), microware (\\n and \\r a carriage return, \\l a line feed, as -mos9newline) or swapped (\\n a carriage return, \\r a line feed, as Ultra C's strict ANSI mode).
+
+Enum
+Name(m68k_os9_newline_kind) Type(int)
+What -mos9newline= makes the escapes \\n, \\r and \\l:
+
+EnumValue
+Enum(m68k_os9_newline_kind) String(standard) Value(0)
+
+EnumValue
+Enum(m68k_os9_newline_kind) String(microware) Value(1)
+
+EnumValue
+Enum(m68k_os9_newline_kind) String(swapped) Value(2)
 
 mos9regfunc
 Target Var(m68k_os9_regfunc)

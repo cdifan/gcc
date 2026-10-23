@@ -417,7 +417,9 @@ struct cpp_options
   unsigned char dollars_in_ident;
 
   /* Nonzero means the escape \n is a carriage return, as in the C
-     compilers of OS-9, where a line ends with one, and \l a line feed.  */
+     compilers of OS-9, where a line ends with one: 1 as in Microware's
+     (\r a carriage return too, \l a line feed), 2 as in Ultra C's strict
+     ANSI mode (\r a line feed, \l no escape).  */
   unsigned char cr_newline;
 
   /* Nonzero means UCNs are accepted in identifiers.  */

@@ -58,6 +58,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/name-hint.h"
 #include "c-family/known-headers.h"
 #include "c-family/c-spellcheck.h"
+
+/* Nonzero where the target accepts 'register' on a function declaration
+   in a block (ignored, with a warning), as some old compilers did.  */
+#ifndef C_REGISTER_FUNCTION_DECL_OK
+#define C_REGISTER_FUNCTION_DECL_OK 0
+#endif
 #include "context.h"  /* For 'g'.  */
 #include "omp-general.h"
 #include "omp-offload.h"  /* For offload_vars.  */
@@ -7547,7 +7553,15 @@ grokdeclarator (const struct c_declarator *declarator,
       }
     else if (TREE_CODE (type) == FUNCTION_TYPE)
       {
-	if (storage_class == csc_register || threadp)
+	if (storage_class == csc_register && !threadp && !funcdef_flag
+	    && current_scope != file_scope && C_REGISTER_FUNCTION_DECL_OK)
+	  {
+	    /* A target's option (m68k's -mos9regfunc) for old code:
+	       'register' ignored, an ordinary block-scope declaration.  */
+	    warning_at (loc, 0, "%<register%> ignored on function %qE", name);
+	    storage_class = csc_none;
+	  }
+	else if (storage_class == csc_register || threadp)
 	  {
 	    error_at (loc, "invalid storage class for function %qE", name);
 	  }

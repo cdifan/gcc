@@ -237,6 +237,10 @@ mos9newline
 Target Var(m68k_os9_newline)
 Make the escape \\n a carriage return (13), the end of a line on OS-9, and \\l a line feed (10), as in Microware C.
 
+mos9regfunc
+Target Var(m68k_os9_regfunc)
+Accept register on a function declaration in a block, with a warning, as an ordinary declaration of an external function, as Microware C 3.2 does.
+
 mos9math
 Target Var(m68k_os9_math)
 Link floating-point operations to OS-9's math module (trap #15) instead of libgcc's software routines.

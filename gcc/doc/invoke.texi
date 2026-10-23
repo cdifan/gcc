@@ -997,7 +997,8 @@ Objective-C and Objective-C++ Dialects}.
 -malign-int  -mstrict-align  -msep-data  -mno-sep-data @gol
 -mshared-library-id=n  -mid-shared-library  -mno-id-shared-library @gol
 -mxgot  -mno-xgot  -mlong-jump-table-offsets  -mos9call  -mno-os9call @gol
--mos9call=@var{kind}  -mbuiltin=@var{convention}  -mos9stkchk  -mos9newline  -mos9math}
+-mos9call=@var{kind}  -mbuiltin=@var{convention}  -mos9stkchk  -mos9newline @gol
+-mos9regfunc  -mos9math}
 
 @emph{MCore Options}
 @gccoptlist{-mhardlit  -mno-hardlit  -mdiv  -mno-div  -mrelax-immediates @gol
@@ -23987,6 +23988,16 @@ string literals and @samp{#if} expressions alike, and defines
 Microware's compilers, or as @samp{\x0a} or @samp{\012}; without
 @option{-mos9newline}, @samp{\l} is an unknown escape.  The option is independent of @option{-mos9call}: code that
 passes text to Microware's C library, or writes OS-9 text files, needs it.
+
+@item -mos9regfunc
+@itemx -mno-os9regfunc
+@opindex mos9regfunc
+Accept the storage class @code{register} on a declaration of a function
+inside a block, such as @code{register char *p, *index();}, which
+Microware C 3.2 accepts and ignores, instead of rejecting it.  The
+compiler warns and treats it as an ordinary declaration of an external
+function.  A function definition, a declaration at file scope and
+@code{_Thread_local} are still errors.
 
 @item -mos9math
 @itemx -mno-os9math

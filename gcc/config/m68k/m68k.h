@@ -224,6 +224,10 @@ along with GCC; see the file COPYING3.  If not see
     }									\
   while (0)
 
+/* -mos9regfunc: the C front end accepts register on a function
+   declaration in a block, as Microware C 3.2 does (c-decl.c).  */
+#define C_REGISTER_FUNCTION_DECL_OK m68k_os9_regfunc
+
 /* Classify the groups of pseudo-ops used to assemble QI, HI and SI
    quantities.  */
 #define INT_OP_STANDARD	0	/* .byte, .short, .long */

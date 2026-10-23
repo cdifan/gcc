@@ -23916,7 +23916,12 @@ variadic functions are placed the same way.  Values are returned in
 @option{-m68881}; aggregates, complex values and @code{long double} are
 returned in memory at the address the caller passes in @code{a0}.  A
 function preserves all registers except @code{d0} and those carrying an
-argument or the return value.  Non-static member functions,
+argument or the return value.  A caller keeps values in @code{a0} and
+@code{a1} across a call only when the called function has a prototype;
+across a call of an unprototyped function they count as changed.  Code
+that passes a value from one call to the next in such a register can
+reserve it with a global register variable, for example
+@code{register void *p __asm__ ("a1");}.  Non-static member functions,
 interrupt handlers and the compiler's own library calls keep the normal
 convention.  The @code{os9call} and @code{stackcall} function attributes
 select either convention for individual function types

@@ -15,7 +15,7 @@ typedef size_t (__attribute__ ((stackcall)) *stack_strlen_fn) (const char *);
 
 stack_memcpy_fn p1 = memcpy;
 stack_memcpy_fn p2 = __builtin_memcpy;
-plain_memcpy_fn p3 = memcpy;	/* { dg-warning "incompatible pointer type" } */
+plain_memcpy_fn p3 = memcpy;	/* { dg-error "incompatible pointer type" } */
 stack_strlen_fn p4 = strlen;
 char *(__attribute__ ((stackcall)) *p5) () = malloc;
 

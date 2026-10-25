@@ -13,6 +13,6 @@ int __attribute__ ((stackcall)) f3 (int);
 os9fn p1 = f1;
 stackfn p2 = f2;
 stackfn p3 = f3;
-os9fn p4 = f2;		/* { dg-warning "incompatible pointer type" } */
-stackfn p5 = f1;	/* { dg-warning "incompatible pointer type" } */
-os9fn p6 = f3;		/* { dg-warning "incompatible pointer type" } */
+os9fn p4 = f2;		/* { dg-error "incompatible pointer type" } */
+stackfn p5 = f1;	/* { dg-error "incompatible pointer type" } */
+os9fn p6 = f3;		/* { dg-error "incompatible pointer type" } */

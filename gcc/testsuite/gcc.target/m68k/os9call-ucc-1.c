@@ -2,7 +2,7 @@
    stack, as Ultra C places them; named arguments, and the arguments of
    unprototyped calls, are placed as with -mos9call.  */
 /* { dg-do compile { target m68k-*-elfos9* } } */
-/* { dg-options "-O2 -mos9call=ucc -mpcrel -ma6rel" } */
+/* { dg-options "-O2 -std=gnu17 -mos9call=ucc -mpcrel -ma6rel" } */
 
 extern void v1 (int, ...);
 extern void v2 (int, int, ...);

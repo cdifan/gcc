@@ -15,5 +15,5 @@ os9fn p1 = f1;
 os9fn p2 = f2;
 plainfn p3 = f1;
 stackfn p4 = f3;
-plainfn p5 = f3;	/* { dg-warning "incompatible pointer type" } */
-stackfn p6 = f2;	/* { dg-warning "incompatible pointer type" } */
+plainfn p5 = f3;	/* { dg-error "incompatible pointer type" } */
+stackfn p6 = f2;	/* { dg-error "incompatible pointer type" } */

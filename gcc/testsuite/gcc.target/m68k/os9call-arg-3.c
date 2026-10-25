@@ -27,7 +27,7 @@ void tld (long double x) { fld (x, 6662); }
 void tcx (_Complex float x) { fcx (x, 7772); }
 
 /* { dg-final { scan-assembler "pea 1112.w\n\tsubq.l #4,%sp\n\tmove.l %d0,%a0\n\tmove.b \\(%a0\\),\\(%sp\\)\n" } } */
-/* { dg-final { scan-assembler "pea 2222.w\n\tsubq.l #4,%sp\n\tmove.b \\(%a0\\),\\(%sp\\)\n\tmove.b 1\\(%a0\\),1\\(%sp\\)\n" } } */
+/* { dg-final { scan-assembler "pea 2222.w\n\tsubq.l #4,%sp\n\tmove.l %d0,%a0\n\tmove.b \\(%a0\\),\\(%sp\\)\n\tmove.b 1\\(%a0\\),1\\(%sp\\)\n" } } */
 /* { dg-final { scan-assembler "pea 3332.w\n\tsubq.l #4,%sp\n\tmove.l %d0,%a0\n\tmove.l %sp,%a1\n" } } */
 /* { dg-final { scan-assembler "pea 4442.w\n\tmove.l %d0,%a0\n\tmove.l \\(%a0\\),-\\(%sp\\)\n" } } */
 /* { dg-final { scan-assembler "pea 5552.w" } } */

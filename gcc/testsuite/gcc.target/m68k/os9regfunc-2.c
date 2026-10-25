@@ -1,7 +1,7 @@
 /* Without -mos9regfunc, register on a function declaration stays an
    error, as in ISO C.  */
 /* { dg-do compile { target m68k-*-elfos9* } } */
-/* { dg-options "" } */
+/* { dg-options "-std=gnu17" } */
 
 char *
 first (char *s)

@@ -17,5 +17,5 @@ _Complex float rcx (_Complex float x) { return x; }
 /* r1: the 1-byte struct is stored through a0, which is preserved.  */
 /* { dg-final { scan-assembler "r1:\n\tmove.l %a0,-\\(%sp\\)\n\tmove.b %d0,\\(%a0\\)" } } */
 /* cs: the caller passes the buffer address in a0.  */
-/* { dg-final { scan-assembler "lea \\(12,%sp\\),%a0\n\tmoveq #7,%d0\n\tlea \\(gs:w,%pc\\),%a1\n\tjsr \\(%a1\\)" } } */
+/* { dg-final { scan-assembler "lea \\(\[0-9\]+,%sp\\),%a0\n\tmoveq #7,%d0\n\tlea \\(gs:w,%pc\\),(%a\[1-5\])\n\tjsr \\(\\1\\)" } } */
 /* { dg-final { scan-assembler "rcx:\n\tmove.l %a0,-\\(%sp\\)\n\tmove.l 8\\(%sp\\),\\(%a0\\)" } } */

@@ -2,7 +2,7 @@
    with a warning, as in Microware C 3.2; the function is an ordinary
    external one.  */
 /* { dg-do compile { target m68k-*-elfos9* } } */
-/* { dg-options "-mos9regfunc" } */
+/* { dg-options "-std=gnu17 -mos9regfunc" } */
 
 char *
 first (char *s)

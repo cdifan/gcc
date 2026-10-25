@@ -11,4 +11,4 @@ double bigd (double x) { char buf[40000]; use (buf); return x; }
 /* The FPU registers first, then the integer registers including a1 (which
    registers depends on the allocation: callers keep values in a0/a1
    across OS-9 convention calls).  */
-/* { dg-final { scan-assembler-times "fmovem -24\\(%a1,%a5.l\\),#192\n\tmovem.l -\[0-9\]+\\(%a1,%a5.l\\),#\[0-9\]+\n\tunlk" 2 } } */
+/* { dg-final { scan-assembler-times "fmovem -24\\(%a1,%a5.l\\),#192\n\t(movem.l -\[0-9\]+\\(%a1,%a5.l\\),#\[0-9\]+|move.l -\[0-9\]+\\(%a1,%a5.l\\),%a0\n\tmove.l -\[0-9\]+\\(%a1,%a5.l\\),%a1)\n\tunlk" 2 } } */

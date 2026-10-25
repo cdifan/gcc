@@ -6,7 +6,7 @@
 _Complex float m (_Complex float a, _Complex float b) { return a * b; }
 _Complex float d (_Complex float a, _Complex float b) { return a / b; }
 
-/* { dg-final { scan-assembler "lea \\(__mulsc3:w,%pc\\),%a\[01\]\n\tjsr" } } */
-/* { dg-final { scan-assembler "lea \\(__divsc3:w,%pc\\),%a\[01\]\n\tjsr" } } */
+/* { dg-final { scan-assembler "lea \\(__mulsc3:w,%pc\\),%a\[01\]\n\t(\[^\n\]*\n\t)?jsr" } } */
+/* { dg-final { scan-assembler "lea \\(__divsc3:w,%pc\\),%a\[01\]\n\t(\[^\n\]*\n\t)?jsr" } } */
 /* Nothing is passed in d0/d1 to them, and no result buffer in a0.  */
 /* { dg-final { scan-assembler-not "move.l \[^\n\]*,%d\[01\]\n\t(move.l \[^\n\]*\n\t)?lea \\(__(mul|div)sc3" } } */

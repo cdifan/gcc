@@ -1674,7 +1674,13 @@ m68k_big_frame_p (void)
 static bool
 m68k_save_reg (unsigned int regno, bool interrupt_handler)
 {
-  if (flag_pic && regno == PIC_REG)
+  /* The OS-9 target's frame pointer is a5, the PIC register, which
+     -mpcrel (flag_pic) doesn't use: the frame pointer's rule below
+     applies (link saves it).  Saved again, with the frame's own value,
+     its unwind information would say so, and the unwinder would restore
+     that value for the caller.  */
+  if (flag_pic && regno == PIC_REG
+      && !(regno == FRAME_POINTER_REGNUM && frame_pointer_needed))
     {
       if (crtl->saves_all_registers)
 	return true;

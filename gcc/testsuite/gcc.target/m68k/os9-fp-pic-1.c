@@ -3,7 +3,7 @@
    in functions that save all registers or use the constant pool.  The
    second save, with the frame's own value, made the unwind information
    give that value to the caller.
-   fixed: 2026-10-29 m68k: the OS-9 frame pointer is not saved again as the PIC register
+   fixed: 607083318d 2026-10-29 m68k: the OS-9 frame pointer is not saved again as the PIC register
 */
 /* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -fno-omit-frame-pointer -mpcrel -ma6rel" } */

@@ -3,7 +3,7 @@
    costs no code, a stack slot a stack adjustment each way.  With the
    default costs GCC 16 kept the first call's result in a stack slot and
    reloaded x from its argument slot.
-   fixed: 2026-11-01 m68k: callee-save and frame-allocation costs
+   fixed: 84b02b0b55 2026-11-01 m68k: callee-save and frame-allocation costs
 */
 /* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O2 -mpcrel -ma6rel" } */

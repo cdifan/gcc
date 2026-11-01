@@ -206,6 +206,10 @@ static machine_mode m68k_promote_function_mode (const_tree, machine_mode,
 						int *, const_tree, int);
 static void m68k_asm_final_postscan_insn (FILE *, rtx_insn *insn, rtx [], int);
 static HARD_REG_SET m68k_zero_call_used_regs (HARD_REG_SET);
+static int m68k_callee_save_cost (spill_cost_type, unsigned int, machine_mode,
+				  unsigned int, int, const HARD_REG_SET &,
+				  bool);
+static int m68k_frame_allocation_cost (frame_cost_type, const HARD_REG_SET &);
 static machine_mode m68k_c_mode_for_floating_type (enum tree_index);
 static bool m68k_use_lra_p (void);
 static tree m68k_handle_callconv_attribute (tree *, tree, tree, int, bool *);
@@ -455,6 +459,12 @@ static tree m68k_gimplify_va_arg (tree, tree, gimple_seq *, gimple_seq *);
 
 #undef TARGET_C_MODE_FOR_FLOATING_TYPE
 #define TARGET_C_MODE_FOR_FLOATING_TYPE m68k_c_mode_for_floating_type
+
+#undef TARGET_CALLEE_SAVE_COST
+#define TARGET_CALLEE_SAVE_COST m68k_callee_save_cost
+
+#undef TARGET_FRAME_ALLOCATION_COST
+#define TARGET_FRAME_ALLOCATION_COST m68k_frame_allocation_cost
 
 /* The os9call and stackcall attributes exclude each other.  */
 static const struct attribute_spec::exclusions attr_os9call_exclusions[] =
@@ -1534,6 +1544,83 @@ m68k_insert_attributes (tree node, tree *attributes)
 
   *attributes = tree_cons (get_identifier ("stackcall"), NULL_TREE,
 			   *attributes);
+}
+
+static bool m68k_os9call_current_p (void);
+static bool m68k_os9call_d1_carries_value (void);
+
+/* The registers the prologue saves whatever the register allocator does:
+   in an OS-9 convention function that makes calls, d1 (unless it carries
+   an argument or the return value), a0, a1, fp0 and fp1 (see
+   m68k_save_reg).  */
+
+static HARD_REG_SET
+m68k_saved_anyway (void)
+{
+  HARD_REG_SET set;
+
+  CLEAR_HARD_REG_SET (set);
+  if (crtl->is_leaf || !m68k_os9call_current_p ())
+    return set;
+  if (!m68k_os9call_d1_carries_value ())
+    SET_HARD_REG_BIT (set, D0_REG + 1);
+  SET_HARD_REG_BIT (set, A0_REG);
+  SET_HARD_REG_BIT (set, A1_REG);
+  if (TARGET_HARD_FLOAT)
+    {
+      SET_HARD_REG_BIT (set, FP0_REG);
+      SET_HARD_REG_BIT (set, FP0_REG + 1);
+    }
+  return set;
+}
+
+/* Implement TARGET_CALLEE_SAVE_COST.  The prologue saves the integer
+   registers with one movem from MIN_MOVEM_REGS on: a register more in it
+   costs no code and a few cycles.  Below that each one is a move.l push
+   and pop, which allocate their own stack, unlike a spill slot (see
+   m68k_frame_allocation_cost); for size, a 2-byte push or pop beats a
+   4-byte spill store or load.  A register the prologue saves anyway
+   (m68k_saved_anyway) costs nothing more, and counts as saved.  */
+
+static int
+m68k_callee_save_cost (spill_cost_type spill_type, unsigned int regno,
+		       machine_mode mode, unsigned int nregs, int mem_cost,
+		       const HARD_REG_SET &allocated_callee_regs,
+		       bool existing_spills_p)
+{
+  HARD_REG_SET anyway = m68k_saved_anyway ();
+  unsigned int end = end_hard_regno (mode, regno);
+  bool all_anyway = true;
+
+  for (unsigned int r = regno; r < end; r++)
+    if (!TEST_HARD_REG_BIT (anyway, r))
+      all_anyway = false;
+  if (all_anyway)
+    return nregs;
+  if (regno < FP0_REG)
+    {
+      HARD_REG_SET saved
+	= (allocated_callee_regs | anyway) & reg_class_contents[GENERAL_REGS];
+      if (hard_reg_set_popcount (saved) + nregs >= MIN_MOVEM_REGS)
+	return nregs;
+      if (optimize_function_for_size_p (cfun))
+	return 1;
+      return mem_cost;
+    }
+  return default_callee_save_cost (spill_type, regno, mode, nregs, mem_cost,
+				   allocated_callee_regs, existing_spills_p);
+}
+
+/* Implement TARGET_FRAME_ALLOCATION_COST.  A spill slot needs the stack
+   adjusted (a subq or lea each way) unless there is a frame pointer, whose
+   link allocates the frame anyway.  */
+
+static int
+m68k_frame_allocation_cost (frame_cost_type, const HARD_REG_SET &)
+{
+  if (frame_pointer_needed)
+    return 0;
+  return REGISTER_MOVE_COST (SImode, GENERAL_REGS, GENERAL_REGS);
 }
 
 static void

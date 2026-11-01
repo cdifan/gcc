@@ -16,12 +16,19 @@ long long ret64 (int a) { clobber (); return (long long) a << 32 | 5; }
 /* { dg-final { scan-assembler "leaf1:\n\taddq.l #1,%d0\n\trts" } } */
 /* copy4: a leaf using d1, a0 and a1 saves them.  */
 /* { dg-final { scan-assembler "copy4:\n\tmovem.l #16576,-\\(%sp\\)" } } */
-/* nonleaf1: d1, a0, a1 (mask 0x302; a is kept in a stack slot).  */
-/* { dg-final { scan-assembler "nonleaf1:\n\tsubq.l #4,%sp\n\tmovem.l #16576,-\\(%sp\\)" } } */
-/* { dg-final { scan-assembler "movem.l \\(%sp\\)\\+,#770\n" } } */
-/* nonleaf2: d1 carries argument 2, so only a0 and a1.  */
-/* { dg-final { scan-assembler "nonleaf2:\n\tsubq.l #8,%sp\n\tmove.l %a1,-\\(%sp\\)\n\tmove.l %a0,-\\(%sp\\)\n\tlea" } } */
-/* ret64: d1 carries half of the result, so only a0 and a1.  */
-/* { dg-final { scan-assembler "ret64:\n\tsubq.l #4,%sp\n\tmove.l %a1,-\\(%sp\\)\n\tmove.l %a0,-\\(%sp\\)\n\tlea" } } */
+/* nonleaf1: d1, a0, a1, and d2, which keeps a across the call, in one
+   movem (mask 0x306), not a stack slot.  */
+/* { dg-final { scan-assembler "nonleaf1:\n\tmovem.l #24768,-\\(%sp\\)" } } */
+/* { dg-final { scan-assembler "movem.l \\(%sp\\)\\+,#774\n" } } */
+/* nonleaf2: d1 carries argument 2, so only a0 and a1 of those; a and b
+   in d3 and d2 (mask 0x30c).  */
+/* { dg-final { scan-assembler "nonleaf2:\n\tmovem.l #12480,-\\(%sp\\)" } } */
+/* { dg-final { scan-assembler "movem.l \\(%sp\\)\\+,#780\n" } } */
+/* ret64: d1 carries half of the result, so only a0 and a1 of those; a in
+   d2 (mask 0x304).  */
+/* { dg-final { scan-assembler "ret64:\n\tmovem.l #8384,-\\(%sp\\)" } } */
+/* { dg-final { scan-assembler "movem.l \\(%sp\\)\\+,#772\n" } } */
+/* No stack slot for a value kept across a call.  */
+/* { dg-final { scan-assembler-not "subq.l #\[48\],%sp" } } */
 /* d0 is never saved.  */
 /* { dg-final { scan-assembler-not "move.l %d0,-\\(%sp\\)" } } */

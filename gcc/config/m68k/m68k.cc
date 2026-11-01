@@ -897,6 +897,18 @@ m68k_option_override (void)
 		 "Microware C%'s");
     }
 
+  /* Jump tables and bit tests for switch statements are enabled from -O1
+     (and -Og) on; at -O0 a switch is a chain of compares, larger than the
+     tables Microware C and earlier GCCs make.  The OS-9 target keeps them
+     at every level unless -fno-jump-tables or -fno-bit-tests is given.  */
+  if (M68K_OS9_TARGET)
+    {
+      if (!OPTION_SET_P (flag_jump_tables))
+	flag_jump_tables = 1;
+      if (!OPTION_SET_P (flag_bit_tests))
+	flag_bit_tests = 1;
+    }
+
   SUBTARGET_OVERRIDE_OPTIONS;
 
   /* The va_start hook only for the OS-9 convention's va_list: with the

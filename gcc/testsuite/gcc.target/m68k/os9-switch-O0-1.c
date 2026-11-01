@@ -1,7 +1,7 @@
 /* At -O0 the OS-9 target makes a jump table for a dense switch, as
    Microware C and GCC 11 do: GCC 16 enables jump tables only from -O1 on,
    and a chain of compares was larger.
-   fixed: 2026-11-01 m68k: OS-9 jump tables and bit tests at -O0 too
+   fixed: 651b192946 2026-11-01 m68k: OS-9 jump tables and bit tests at -O0 too
 */
 /* { dg-do compile { target m68k-*-elfos9* } } */
 /* { dg-options "-O0 -mpcrel -ma6rel" } */
